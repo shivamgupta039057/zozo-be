@@ -1,7 +1,8 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/postgres.config");
 
-const LeadField = sequelize.define(
+module.exports = (sequelize, DataTypes) => {
+  const LeadField = sequelize.define(
   "LeadField",
   {
     id: {
@@ -13,7 +14,7 @@ const LeadField = sequelize.define(
       type: DataTypes.STRING,  // e.g., "course_type"
       allowNull: false,
     },
-    lable: {
+    label: {
       type: DataTypes.STRING,  // e.g., "Course Type"
       allowNull: false,
     },
@@ -67,31 +68,6 @@ const LeadField = sequelize.define(
     timestamps: true,
   }
 );
-module.exports = LeadField;
+  return LeadField;
+};
 
-// await LeadField.bulkCreate([
-//   {
-//     name: "course_type",
-//     label: "Course Type",
-//     type: "dropdown",
-//     options: [
-//       { label: "MBBS Government", value: "mbbs_govt", order: 1 },
-//       { label: "MBBS Abroad", value: "mbbs_abroad", order: 2 },
-//       { label: "MBBS Private", value: "mbbs_private", order: 3 },
-//       { label: "BAMS", value: "bams", order: 4 },
-//       { label: "NRI Admission", value: "nri_admission", order: 5 },
-//     ],
-//     is_required: true,
-//     order: 1,
-//     category: "lead_form",
-//   },
-//   {
-//     name: "student_name",
-//     label: "Student Name",
-//     type: "text",
-//     is_required: true,
-//     default_value: "",
-//     order: 2,
-//     category: "lead_form",
-//   },
-// ]);

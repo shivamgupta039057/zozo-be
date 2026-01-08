@@ -6,6 +6,9 @@ const LeadStatus = require("./LeadStages/leadStatus");
 const LeadReason = require("./LeadStages/leadReason");
 const User = require("./userModel");
 
+
+const { Campaign } = require("./index");
+
 const Lead = sequelize.define(
   "Lead",
   {
@@ -14,27 +17,59 @@ const Lead = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
-    data: {
-      type: DataTypes.JSONB,
-      allowNull: true,  // store form data dynamically
-    }, 
+    campaign_id: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: "campaigns",
+      stage_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "leadstage",
+          key: "id",
+        },
+      },
+        key: "id",
+      },
+      allowNull: true,
+    },
     name: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    phone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    meta: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    data: {
+      type: DataTypes.JSONB,
+      allowNull: true,  // store form data dynamically
     },
     whatsapp_number: {
       type: DataTypes.STRING,
       allowNull: true,
     },
     source: {
-      type: DataTypes.STRING, 
+      type: DataTypes.STRING,
       allowNull: true,
     },
     assignedTo: {
       type: DataTypes.INTEGER, // User ID
       allowNull: true,
       references: {
-        model: User,
+        model: "users",
         key: "id",
       },
     },
@@ -42,14 +77,14 @@ const Lead = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: LeadStage,
+        model: "leadstage",
         key: "id",
       },
     },
     status_id: {
       type: DataTypes.INTEGER,
       references: {
-        model: LeadStatus,
+        model: "lead_statuses",
         key: "id",
       },
       allowNull: true,
@@ -57,7 +92,7 @@ const Lead = sequelize.define(
     reason_id: {
       type: DataTypes.INTEGER,
       references: {
-        model: LeadReason,
+        model: "lead_reasons",
         key: "id",
       },
       allowNull: true,
@@ -70,24 +105,19 @@ const Lead = sequelize.define(
       type: DataTypes.INTEGER, // admin/user ID who created this lead
       allowNull: true,
       references: {
-        model: User,
+        model: "users",
         key: "id",
       },
     },
   },
   {
-    timestamps: true,
+    timestamps: false,
     tableName: "leads",
   }
 );
 
 
-Lead.belongsTo(LeadStage, { foreignKey: "stage_id", as: "stage" });
-Lead.belongsTo(LeadStatus, { foreignKey: "status_id", as: "status" });
-Lead.belongsTo(LeadReason, { foreignKey: "reason_id", as: "reason" });
-Lead.belongsTo(User, { foreignKey: "assignedTo", as: "assignedUser" });
-Lead.belongsTo(User, { foreignKey: "created_by", as: "creator" });
-User.hasMany(Lead, { foreignKey: "assignedTo", as: "assignedLeads" });
-User.hasMany(Lead, { foreignKey: "created_by", as: "createdLeads" });
 
+
+module.exports = Lead;
 module.exports = Lead;
