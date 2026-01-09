@@ -149,7 +149,7 @@ exports.getUserList = async (query) => {
     // Return formatted response
 
     const users = await UserModel.findAll({
-      attributes: ['id', 'name', 'email', 'phone', 'createdAt', 'updatedAt'],
+      attributes: ['id', 'name', 'email', 'phone', 'createdAt', 'initials', 'updatedAt'],
       where: whereClause,
       include: [
         {

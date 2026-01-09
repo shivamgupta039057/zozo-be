@@ -15,11 +15,11 @@ exports.createLeadField = async (body) => {
   console.log("fdsfkljsdfdklfdjs", body);
 
   try {
-    const { lable, ...rest } = body;
+    const { label, ...rest } = body;
 
     const existingField = await leadfield.findOne({
       where: {
-        lable: lable,
+        label: label,
       },
     });
 
@@ -31,8 +31,7 @@ exports.createLeadField = async (body) => {
       };
     }
 
-    const name = lable.toLowerCase().trim().replace(/\s+/g, "_");
-    
+    const name = label.toLowerCase().trim().replace(/\s+/g, "_");
     
      const maxOrderStatus = await leadfield.findOne({
      order: [["order", "DESC"]],
@@ -43,7 +42,7 @@ exports.createLeadField = async (body) => {
 
    
 
-    const leadfiled = await leadfield.create({ ...rest, lable, name , order: nextOrder });
+    const leadfiled = await leadfield.create({ ...rest, label, name , order: nextOrder });
     
     return {
       statusCode: statusCode.OK,

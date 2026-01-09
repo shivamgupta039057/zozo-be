@@ -1,4 +1,5 @@
-const sequelize = require('../config/postgres.config')
+const sequelize = require('../config/postgres.config');
+const Sequelize = require('sequelize');
 const insertDefaultLeadFields = require("../seed/leadFieldDefaults");
 
 // require("./roleModel");
@@ -18,7 +19,10 @@ const Broadcast = require('./brodcaste/Broadcast')
 
 const BroadcastFilter = require('./brodcaste/BroadcastFilter')
 const BroadcastLead = require('./brodcaste/BroadcastLead')
-const BroadcastLog=require('./brodcaste/BroadcastLog')
+const BroadcastLog=require('./brodcaste/BroadcastLog');
+const Lead = require('./lead');
+const FacebookIntegration = require('./FacebookIntegration')(sequelize, Sequelize.DataTypes);
+
 // Role <-> PermissionTemplate (1:1)
 // RoleModel.belongsTo(PermissionTemplateModel, { foreignKey: 'permissionTemplateId', as: 'template' });
 // PermissionTemplateModel.hasOne(RoleModel, { foreignKey: 'permissionTemplateId', as: 'role' });
@@ -29,7 +33,10 @@ Broadcast.hasMany(BroadcastLead, { foreignKey: "broadcast_id" });
 Broadcast.hasMany(BroadcastLog, { foreignKey: "broadcast_id" });
 
 BroadcastLead.belongsTo(Broadcast, { foreignKey: "broadcast_id" });
-// BroadcastLead.belongsTo(Lead, { foreignKey: "lead_id" });
+
+FacebookIntegration.belongsTo(UserModel, { foreignKey: 'user_id' });
+UserModel.hasMany(FacebookIntegration, { foreignKey: 'user_id' });
+BroadcastLead.belongsTo(Lead, { foreignKey: "lead_id" });
 
 const initDB = async () => {
     try {
@@ -49,5 +56,5 @@ const initDB = async () => {
 module.exports = {
     initDB, sequelize, RoleModel, PermissionTemplateModel, UserModel, Broadcast,
     BroadcastFilter,
-    BroadcastLead,BroadcastLog
+    BroadcastLead,BroadcastLog , FacebookIntegration
 }

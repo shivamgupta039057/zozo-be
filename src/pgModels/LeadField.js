@@ -13,7 +13,7 @@ const LeadField = sequelize.define(
       type: DataTypes.STRING,  // e.g., "course_type"
       allowNull: false,
     },
-    lable: {
+    label: {
       type: DataTypes.STRING,  // e.g., "Course Type"
       allowNull: false,
     },

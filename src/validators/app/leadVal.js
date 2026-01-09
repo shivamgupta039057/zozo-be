@@ -13,7 +13,7 @@ exports.leadValidation = Joi.object({
 // Joi validation schema for LeadField model
 exports.
 leadFieldValidation = Joi.object({
-    lable: Joi.string().trim().required(),
+    label: Joi.string().trim().required(),
     type: Joi.string().valid(
         "checkbox",
         "date",
