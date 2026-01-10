@@ -1,6 +1,5 @@
-const { RoleModel, PermissionModel, PermissionTemplateModel } = require("../pgModels/index");
-const RolePermission = require("../pgModels/rolePermission");
-const PermissionTemplatePermission = require("../pgModels/permissionTemplatePermissionModel");
+const { RoleModel } = require("../pgModels/index");
+
 
 const seed = async () => {
   // Roles

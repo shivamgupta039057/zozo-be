@@ -1,10 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/postgres.config");
 
-const LeadStage = require("./LeadStages/LeadStage");
-const LeadStatus = require("./LeadStages/leadStatus");
-const LeadReason = require("./LeadStages/leadReason");
-const User = require("./userModel");
 
 
 const { Campaign } = require("./index");
@@ -120,4 +116,4 @@ const Lead = sequelize.define(
 
 
 module.exports = Lead;
-module.exports = Lead;
+

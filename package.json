@@ -7,6 +7,7 @@
     "start": "nodemon index.js",
     "socket": "nodemon socket.js",
     "worker":"nodemon src/workers/broadcast.worker.js",
+    "migration:run": "node run_migration.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

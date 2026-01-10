@@ -38,7 +38,7 @@
 const express = require('express');
 const router = express.Router();
 const FacebookController = require('../controllers/FacebookController');
-
+const auth=require('../../middleware/auth');
 // 🔹 OAuth callback (FIRST HIT)
 router.get('/callback', FacebookController.callback);
 
@@ -49,16 +49,13 @@ router.get('/form_questions/:formId', FacebookController.getFormQuestions);
 
 
 
-router.post('/integrations',FacebookController.createIntegration);
+router.post('/integrations',auth,FacebookController.createIntegration);
 
 // 🔹 Integration mappings
-router.post('/integrations/:id/mappings', FacebookController.saveIntegrationMappings);
+router.post('/integrations/:id/mappings',auth, FacebookController.saveIntegrationMappings);
 
+router.post('/integrations/:integrationId/lead-distribution',auth, FacebookController.saveLeadDistribution);
 
-// 🔹 CRM save APIs
-router.post('/page/select', FacebookController.selectPage);
-router.post('/form/select', FacebookController.selectForm);
-router.post('/form/mapping', FacebookController.saveFieldMapping);
 
 // 🔹 Webhook
 router.get('/webhook', FacebookController.facebookWebhookVerify);

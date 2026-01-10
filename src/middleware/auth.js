@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config/dev.config');
-const UserModel = require('../pgModels/userModel');
+const {UserModel} = require('../pgModels/index');
 
 module.exports = async (req, res, next) => {
     try {
@@ -28,7 +28,7 @@ module.exports = async (req, res, next) => {
         }
 
         const user = await UserModel.findOne({ where: { id: payload.id, isDeleted: false } });
-        console.log("Authenticated User:", user);
+       
         if (!user) {
             return res.status(401).json({
                 success: false,

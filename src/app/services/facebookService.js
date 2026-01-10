@@ -1,4 +1,3 @@
-const FacebookIntegration = require('../../pgModels/FacebookIntegration');
 // const { getRequest } = require('../helper/axiosHelper');
 // require('dotenv').config();
 // const { FacebookConnection, FacebookPage, FacebookForm,FacebookFormField,CrmField,FbFieldMapping,Campaign,RawFacebookLead } = require('../../pgModels/index')
@@ -126,14 +125,10 @@ const FacebookIntegration = require('../../pgModels/FacebookIntegration');
 
 const { getRequest } = require('../helper/axiosHelper');
 require('dotenv').config();
-
-const {
-  FacebookConnection,
-  FacebookPage,
-  FacebookForm,
-  FacebookFormField,
-  CrmField,
-  FbFieldMapping,
+const { fetchFacebookLead, applyFieldMapping, assignLeadByPercentage } = require('../helper/facebookHelper');
+const { sequelize,
+  FacebookConnection, FacebookIntegration,
+  FbFieldMapping, FbLeadDistributionState, FbLeadDistributionRule,
   Campaign,
   RawFacebookLead
 } = require('../../pgModels/index');
@@ -142,30 +137,6 @@ const BASE_URL = 'https://graph.facebook.com/v24.0';
 const { statusCode } = require("../../config/default.json");
 
 module.exports = {
-  /**
-   * Bulk create field mappings for a Facebook integration
-   * @param {number} integrationId
-   * @param {Array} mappings
-   */
-  async saveIntegrationMappings(integrationId, mappings) {
-    if (!integrationId || !Array.isArray(mappings)) {
-      throw new Error('integrationId and mappings are required');
-    }
-    const { FbFieldMapping } = require('../../pgModels/index');
-    if (!FbFieldMapping) {
-      throw new Error('FbFieldMapping model not found');
-    }
-    return await FbFieldMapping.bulkCreate(
-      mappings.map(m => ({
-        integration_id: integrationId,
-        fb_field_key: m.fb,
-        crm_field_key: m.crm,
-        replace_if_empty: m.replace
-      }))
-    );
-  },
-
-
 
   /* =========================
      FACEBOOK READ APIs
@@ -248,26 +219,191 @@ module.exports = {
     }
   },
 
-//intergation create
+  //intergation create
 
-    /**
-   * Create a Facebook Integration
-   * @param {Object} params - { userId, page, form }
-   */
-  async createIntegration({ userId, page, form }) {
-    if (!userId || !page?.id || !form?.id) {
-      throw new Error('userId, page.id, and form.id are required');
+  /**
+ * Create a Facebook Integration
+ * @param {Object} params - { userId, page, form }
+ */
+  async createIntegration({ userId, page, form, pageAccessToken }) {
+    try {
+      if (!userId || !page?.id || !form?.id || !pageAccessToken) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: 'userId, page, form, and pageAccessToken are required',
+        };
+      }
+      const result = await sequelize.transaction(async (t) => {
+        const existing = await FacebookIntegration.findOne({
+          where: {
+            user_id: userId,
+            fb_page_id: page.id,
+            fb_form_id: form.id,
+          },
+          transaction: t,
+        });
+        if (existing) {
+
+          // 🔥 overwrite old/dead token
+          await existing.update(
+            {
+              access_token: pageAccessToken,
+              status: existing.status === 'inactive' ? 'inactive' : existing.status,
+              token_invalid_at: null,
+            },
+            { transaction: t }
+          );
+
+          return {
+            integration: existing,
+            isNew: false,
+            resumeFrom: existing.status === 'active' ? 'finished' : 'mapping',
+            tokenUpdated: true,
+          };
+        }
+        const integration = await FacebookIntegration.create(
+          {
+            user_id: userId,
+            fb_page_id: page.id,
+            fb_page_name: page.name,
+            fb_form_id: form.id,
+            fb_form_name: form.name,
+            access_token: pageAccessToken, // PAGE TOKEN
+            status: 'inactive', // 👈 mapping ke baad active hoga
+          },
+          { transaction: t }
+        );
+        return {
+          integration,
+          isNew: true,
+          resumeFrom: 'mapping',
+        };
+      });
+      return {
+        statusCode: statusCode.OK,
+        success: true,
+        message: result.isNew ? 'Integration created successfully' : 'Integration already exists',
+        data: result,
+      };
+    } catch (error) {
+      console.error('Error in createIntegration:', error);
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: error.message,
+      };
     }
-    const integration = await FacebookIntegration.create({
-      user_id: userId,
-      fb_page_id: page.id,
-      fb_page_name: page.name,
-      fb_form_id: form.id,
-      fb_form_name: form.name,
-      status: 'active',
-    });
-    return integration;
   },
+
+  /**
+ * Bulk create field mappings for a Facebook integration
+ * @param {number} integrationId
+ * @param {Array} mappings
+ */
+  async saveIntegrationMappings(integrationId, mappings) {
+    try {
+      if (!integrationId || !Array.isArray(mappings) || mappings.length === 0) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: 'integrationId and mappings are required',
+        };
+      }
+
+      const created = await sequelize.transaction(async (t) => {
+
+        await FbFieldMapping.destroy({
+          where: { integration_id: Number(integrationId) },
+          transaction: t,
+        });
+
+        const rows = mappings.map(m => ({
+          integration_id: Number(integrationId), // 🔥 FIX
+          fb_field_key: m.fb,
+          crm_field_key: m.crm,
+          replace_if_empty: m.replace ?? true,
+        }));
+
+        const result = await FbFieldMapping.bulkCreate(rows, {
+          transaction: t,
+          returning: ["id", "integration_id", "fb_field_key", "crm_field_key", "replace_if_empty"] // Only return existing columns
+        });
+
+        await FacebookIntegration.update(
+          { status: 'inactive' },
+          { where: { id: Number(integrationId) }, transaction: t }
+        );
+
+        return result;
+      });
+
+      return {
+        statusCode: statusCode.OK,
+        success: true,
+        message: 'Integration mappings saved successfully',
+        data: created,
+      };
+
+    } catch (error) {
+      console.error('saveIntegrationMappings error:', error);
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: error.message,
+      };
+    }
+  },
+
+
+  async saveLeadDistributionRules(integrationId, users) {
+    return sequelize.transaction(async (t) => {
+      // remove old rules
+      await FbLeadDistributionRule.destroy({
+        where: { integration_id: integrationId },
+        transaction: t,
+      });
+
+      await FbLeadDistributionState.destroy({
+        where: { integration_id: integrationId },
+        transaction: t,
+      });
+
+      // insert new rules
+      const rules = users.map((u) => ({
+        integration_id: integrationId,
+        user_id: u.userId,
+        percentage: u.percentage,
+        is_active: true,
+      }));
+
+      await FbLeadDistributionRule.bulkCreate(rules, {
+        transaction: t,
+      });
+
+      // init state
+      const stateRows = users.map((u) => ({
+        integration_id: integrationId,
+        user_id: u.userId,
+        assigned_count: 0,
+      }));
+
+      await FbLeadDistributionState.bulkCreate(stateRows, {
+        transaction: t,
+      });
+
+      await FacebookIntegration.update(
+        { status: 'active' },
+        { where: { id: integrationId } }
+      );
+      return {
+        success: true,
+        message: 'Lead distribution rules saved successfully'
+      }
+    });
+  },
+
+
 
   /* =========================
      OAUTH CALLBACK
@@ -312,168 +448,88 @@ module.exports = {
     return true;
   },
 
-  /* =========================
-     WEBHOOK HANDLER (REAL LOGIC)
-  ========================== */
+};
 
-  async handleWebhookEvent(body) {
-    const value = body.entry?.[0]?.changes?.[0]?.value;
+exports.handleWebhook = async (req, res) => {
+  try {
+    const entry = req.body.entry?.[0];
+    const change = entry?.changes?.[0];
 
-    if (!value?.leadgen_id || !value?.page_id) return;
+    if (!change || change.field !== 'leadgen') {
+      return res.sendStatus(200);
+    }
 
-    /* 1️⃣ Resolve Facebook Page */
-    const page = await FacebookPage.findOne({
-      where: { fb_page_id: value.page_id }
+    const {
+      leadgen_id,
+      form_id,
+      page_id
+    } = change.value;
+
+    // 1️⃣ find integration
+    const integration = await FacebookIntegration.findOne({
+      where: {
+        fb_page_id: page_id,
+        fb_form_id: form_id,
+        status: 'active',
+      },
     });
 
-    if (!page) return;
+    if (!integration) {
+      console.log('No active integration found');
+      return res.sendStatus(200);
+    }
 
-    /* 2️⃣ Fetch full lead from Facebook */
-    const leadData = await getRequest(
-      `${BASE_URL}/${value.leadgen_id}`,
-      { access_token: page.page_access_token }
+    // 2️⃣ fetch lead from facebook
+    const leadData = await fetchFacebookLead(
+      leadgen_id,
+      integration.access_token
     );
 
-    /* 3️⃣ Save raw Facebook lead (IMPORTANT) */
-    const rawLead = await RawFacebookLead.create({
-      fb_lead_id: value.leadgen_id,
-      fb_form_id: leadData.form_id,
-      fb_page_id: value.page_id,
-      payload: leadData
+    // 3️⃣ apply mapping
+    const mappedLead = await applyFieldMapping(
+      integration.id,
+      leadData
+    );
+
+    // 4️⃣ assign user (percentage logic)
+    const assignedUserId = await assignLeadByPercentage(
+      integration.id
+    );
+
+    // 5️⃣ save lead
+    await Lead.create({
+      integration_id: integration.id,
+      assigned_user_id: assignedUserId,
+      name: mappedLead.name,
+      phone: mappedLead.phone,
+      email: mappedLead.email,
+      raw_payload: leadData,
     });
 
-    /* 4️⃣ Get mappings */
-    const mappings = await FbFieldMapping.findAll({
-      where: { form_id: leadData.form_id }
-    });
-
-    if (!mappings.length) return;
-
-    /* 5️⃣ Build CRM payload */
-    const crmPayload = {};
-
-    for (const map of mappings) {
-      const fbField = leadData.field_data.find(
-        f => f.name === map.fb_field_key
-      );
-
-      if (fbField) {
-        crmPayload[map.crm_field_key] = fbField.values[0];
-      }
-    }
-
-    /* 6️⃣ Attach campaign if exists */
-    const campaign = await Campaign.findOne({
-      where: { source: 'facebook', source_ref_id: leadData.form_id }
-    });
-
-    if (campaign) {
-      crmPayload.campaign_id = campaign.id;
-    }
-
-    /* 7️⃣ Final CRM Lead Create */
-    await CrmField.create({
-      ...crmPayload,
-      raw_facebook_lead_id: rawLead.id
-    });
-
-    return true;
-  },
-
-
-  async savePage(req) {
-  const { fb_page_id, name, page_access_token } = req.body;
-
-  if (!fb_page_id || !page_access_token) {
-    throw new Error("fb_page_id and page_access_token are required");
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error('Webhook error:', err);
+    return res.sendStatus(500);
   }
-
-  // 1️⃣ Find facebook connection of logged-in user
-  const connection = await FacebookConnection.findOne({
-    where: { user_id: req.user.id }
-  });
-
-  if (!connection) {
-    throw new Error("Facebook not connected for this user");
-  }
-
-  // 2️⃣ Save / update page
-  const page = await FacebookPage.upsert({
-    connection_id: connection.id,
-    fb_page_id,
-    name,
-    page_access_token
-  }, {
-    returning: true
-  });
-
-  return page[0]; // sequelize upsert returns [row, created]
-},
-
-
-async saveForm(req) {
-  const { page_id, fb_form_id, name, questions } = req.body;
-
-  if (!page_id || !fb_form_id) {
-    throw new Error("page_id and fb_form_id are required");
-  }
-
-  // 1️⃣ Save / update form
-  const [form] = await FacebookForm.upsert({
-    page_id,
-    fb_form_id,
-    name
-  }, {
-    returning: true
-  });
-
-  // 2️⃣ Remove old questions (re-select case)
-  await FacebookFormField.destroy({
-    where: { form_id: form.id }
-  });
-
-  // 3️⃣ Save questions
-  if (Array.isArray(questions)) {
-    for (const q of questions) {
-      await FacebookFormField.create({
-        form_id: form.id,
-        fb_field_key: q.key,
-        fb_field_label: q.label
-      });
-    }
-  }
-
-  return form;
-},
-
-
-async saveFieldMapping(req) {
-  const { form_id, mappings } = req.body;
-
-  if (!form_id || !Array.isArray(mappings)) {
-    throw new Error("form_id and mappings are required");
-  }
-
-  // 1️⃣ Remove old mappings (re-map case)
-  await FbFieldMapping.destroy({
-    where: { form_id }
-  });
-
-  // 2️⃣ Save new mappings
-  for (const map of mappings) {
-    await FbFieldMapping.create({
-      form_id,
-      fb_field_key: map.fb_field,
-      crm_field_key: map.crm_field
-    });
-  }
-
-  return true;
-}
-
-
-
 };
 
 
 
+
+
+
+
+
+
+async function handleFacebookLead(integration, mappedLead) {
+  const assignedUserId = await assignLeadByPercentage(integration.id);
+
+  await Lead.create({
+    integration_id: integration.id,
+    assigned_user_id: assignedUserId,
+    name: mappedLead.name,
+    phone: mappedLead.phone,
+    email: mappedLead.email,
+    raw_payload: mappedLead.raw,
+  });
+}

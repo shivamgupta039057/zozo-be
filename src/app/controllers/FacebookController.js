@@ -98,25 +98,6 @@ module.exports = {
    * Bulk create field mappings for a Facebook integration
    */
 
-
-  /**
-   * POST /facebook/integrations
-   * Create a Facebook Integration
-   */
-  async createIntegration(req, res) {
-    try {
-      const { page, form } = req.body;
-      const integration = await FacebookService.createIntegration({
-        userId: req.user.id,
-        page,
-        form,
-      });
-      res.json(integration);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  },
-
   // OAuth callback
   async callback(req, res) {
     try {
@@ -154,6 +135,26 @@ module.exports = {
 
 
 
+  /**
+   * POST /facebook/integrations
+   * Create a Facebook Integration
+   */
+  async createIntegration(req, res) {
+    try {
+      const { page, form ,pageAccessToken} = req.body;
+      const integration = await FacebookService.createIntegration({
+        userId: req.user.id,
+        page,
+        form,
+        pageAccessToken
+      });
+      res.json(integration);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+
     async saveIntegrationMappings(req, res) {
     try {
       const integrationId = req.params.id;
@@ -165,23 +166,34 @@ module.exports = {
     }
   },
 
+  async saveLeadDistribution(req, res) {
+    try {
+      const { integrationId } = req.params;
+      const { users } = req.body;
+
+      if (!Array.isArray(users) || users.length === 0) {
+        return res.status(400).json({ message: 'Users required' });
+      }
+
+      const total = users.reduce((s, u) => s + u.percentage, 0);
+      if (total !== 100) {
+        return res.status(400).json({ message: 'Percentages must sum to 100' });
+      }
+
+      await FacebookService.saveLeadDistributionRules(
+        Number(integrationId),
+        users
+      );
+
+      res.json({ success: true, message: 'Distribution saved' });
+    } catch (err) {
+      res.status(400).json({ success: false, message: err.message });
+    }
+  },
+
+
+
   
-  // CRM save APIs
-  async selectPage(req, res) {
-    const data = await FacebookService.savePage(req);
-    res.json({ success: true, data });
-  },
-
-  async selectForm(req, res) {
-    const data = await FacebookService.saveForm(req);
-    res.json({ success: true, data });
-  },
-
-  async saveFieldMapping(req, res) {
-    await FacebookService.saveFieldMapping(req);
-    res.json({ success: true });
-  },
-
   // Webhook verify
   facebookWebhookVerify(req, res) {
     const token = process.env.FB_VERIFY_TOKEN;
@@ -196,7 +208,11 @@ module.exports = {
 
   // Webhook receive
   async facebookWebhookEvent(req, res) {
-    await FacebookService.handleWebhookEvent(req.body);
+    await FacebookService.handleWebhook(req,res);
     res.sendStatus(200);
   }
 };
+
+
+
+  

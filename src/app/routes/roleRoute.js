@@ -7,6 +7,6 @@ const auth = require("../../middleware/auth");
 
 // Get Homepage Data
 
-router.get('/getRoles', auth, responseHandler(controllers.getRoles));
+router.get('/getRoles', responseHandler(controllers.getRoles));
 
 module.exports = router;

@@ -1,9 +1,6 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const Lead = require("../../pgModels/lead");
-const LeadField = require("../../pgModels/leadField");
-// const Lead = require("../../pgModels/lead");
-const leadfield = require("../../pgModels/leadField");
 const OnLeadFieldChange = require("../../utils/OnLeadFieldChange");
+const {LeadField,Lead}= require("../../pgModels");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -12,17 +9,20 @@ const OnLeadFieldChange = require("../../utils/OnLeadFieldChange");
  * @throws Will throw an error if there is a database error.
  */
 exports.createLeadField = async (body) => {
-  console.log("fdsfkljsdfdklfdjs", body);
+
 
   try {
     const { lable, ...rest } = body;
 
-    const existingField = await leadfield.findOne({
+    // let a=await LeadField.findAll();
+    // console.log("aaaaaaaaaa" , a);
+    const existingField = await LeadField.findOne({
       where: {
-        lable: lable,
+        label: lable
       },
     });
 
+    console.log("existingFieldexistingField" , existingField);
     if (existingField) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -34,7 +34,7 @@ exports.createLeadField = async (body) => {
     const name = lable.toLowerCase().trim().replace(/\s+/g, "_");
     
     
-     const maxOrderStatus = await leadfield.findOne({
+     const maxOrderStatus = await LeadField.findOne({
      order: [["order", "DESC"]],
      attributes: ["order"],
     });
@@ -43,7 +43,7 @@ exports.createLeadField = async (body) => {
 
    
 
-    const leadfiled = await leadfield.create({ ...rest, lable, name , order: nextOrder });
+    const leadfiled = await LeadField.create({ ...rest, label:lable, name , order: nextOrder });
     
     return {
       statusCode: statusCode.OK,
@@ -63,7 +63,7 @@ exports.createLeadField = async (body) => {
 exports.getAllLeadFields = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const getfield = await leadfield.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadField.findAll({ order: [["order", "ASC"]] });
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -164,7 +164,7 @@ exports.updateLeadFieldServices = async (params, body) => {
 exports.deleteLeadField = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await leadfield.destroy(
+    const updatefield = await LeadField.destroy(
       {
         where: { id: id },
       }
@@ -188,7 +188,7 @@ exports.deleteLeadField = async (params) => {
 exports.reorderLeadField = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const leadsName = await leadfield.findAll({ 
+    const leadsName = await LeadField.findAll({ 
       attributes: ['lable'], 
       order: [["order", "ASC"]] 
     });

@@ -1,9 +1,8 @@
 
 const { statusCode, resMessage } = require("../../config/default.json");
-const Lead = require("../../pgModels/lead");
+const {Lead,LeadStage,LeadStatus, UserModel} = require("../../pgModels");
 const { Op } = require("sequelize");
-const LeadStage = require("../../pgModels/LeadStages/LeadStage");
-const LeadStatus = require("../../pgModels/LeadStages/leadStatus");
+
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
 const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require('xlsx');
@@ -340,6 +339,7 @@ exports.getAllLeads = async (query) => {
       }
     });
 
+    
     // -----------------------------------------
     // 6️⃣ FINAL DB QUERY
     // -----------------------------------------
@@ -350,9 +350,9 @@ exports.getAllLeads = async (query) => {
       },
       include: [
         { model: LeadStatus, as: "status", attributes: ["name", "color"] },
-        { model: require("../../pgModels/userModel"), as: "assignedUser", attributes: ["id", "name", "email"] }
+        { model: UserModel, as: "assignedUser", attributes: ["id", "name", "email"] }
       ],
-      order: [["createdAt", "DESC"]],
+      order: [["created_at", "DESC"]],
     });
 
     return {

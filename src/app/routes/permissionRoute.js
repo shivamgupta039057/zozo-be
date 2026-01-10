@@ -7,9 +7,9 @@ const auth = require("../../middleware/auth");
 
 // Get Homepage Data
 
-router.get('/getPermissionTemplates', auth, responseHandler(controllers.getPermssionTemplate));
-router.get('/getTemplatesName', auth, responseHandler(controllers.getTemplatesName));
-router.post('/createPermissionTemplate', auth, responseHandler(controllers.createPermissionTemplate));
-router.post('/updatePermissionTemplate/:id', auth, responseHandler(controllers.updatePermissionTemplate));
+router.get('/getPermissionTemplates', responseHandler(controllers.getPermssionTemplate));
+router.get('/getTemplatesName', responseHandler(controllers.getTemplatesName));
+router.post('/createPermissionTemplate', responseHandler(controllers.createPermissionTemplate));
+router.post('/updatePermissionTemplate/:id', responseHandler(controllers.updatePermissionTemplate));
 
 module.exports = router;
