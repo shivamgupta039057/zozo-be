@@ -15,7 +15,7 @@ const { setIO } = require('./src/app/sockets/socketIntance');
 app.use(cors());
 // connectPostgres();
 initDB();
-// initDB().then(() => seed());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '/public')));
