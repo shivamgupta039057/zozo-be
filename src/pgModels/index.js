@@ -44,8 +44,8 @@ const FbLeadDistributionState = require('./FbLeadDistributionState')(sequelizeIn
 
 
 
-Lead.belongsTo(Campaign, { foreignKey: 'campaign_id', as: 'campaign' });
-Campaign.hasMany(Lead, { foreignKey: 'campaign_id', as: 'leads' });
+// Lead.belongsTo(Campaign, { foreignKey: 'campaign_id', as: 'campaign' });
+// Campaign.hasMany(Lead, { foreignKey: 'campaign_id', as: 'leads' });
 Lead.belongsTo(LeadStage, { foreignKey: 'stage_id', as: 'stage' });
 Lead.belongsTo(LeadStatus, { foreignKey: 'status_id', as: 'status' });
 Lead.belongsTo(LeadReason, { foreignKey: 'reason_id', as: 'reason' });

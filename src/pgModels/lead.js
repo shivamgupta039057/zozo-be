@@ -13,41 +13,13 @@ const Lead = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
-    campaign_id: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: "campaigns",
-      stage_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: {
-          model: "leadstage",
-          key: "id",
-        },
-      },
-        key: "id",
-      },
-      allowNull: true,
-    },
     name: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    email: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    phone: {
       type: DataTypes.STRING,
       allowNull: true,
     },
     meta: {
       type: DataTypes.JSONB,
       allowNull: true,
-    },
-    created_at: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
     },
     data: {
       type: DataTypes.JSONB,
@@ -106,10 +78,11 @@ const Lead = sequelize.define(
       },
     },
   },
-  {
-    timestamps: false,
-    tableName: "leads",
-  }
+{
+  tableName: "leads",
+  timestamps: true,
+}
+
 );
 
 

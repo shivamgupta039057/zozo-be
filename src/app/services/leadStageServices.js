@@ -156,7 +156,7 @@ exports.deleteLeadStage = async (params) => {
 exports.createLeadStatus = async (body) => {
   console.log("createLeadStatuscreateLeadStatus" , body); 
   try {
-  const { stage_id, name, color } = body;
+  const { stage_id, name, color , is_default } = body;
   const existingStatus = await Leadstatus.findOne({
     where: {
       stage_id,
@@ -184,6 +184,7 @@ exports.createLeadStatus = async (body) => {
     stage_id,
     name,
     color,
+    is_default: is_default || false,
     order: nextOrder,
   });
   const leadstatus = await Leadstatus.findByPk(leadStatusCreate.id, {

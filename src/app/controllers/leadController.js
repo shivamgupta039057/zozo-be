@@ -44,9 +44,9 @@ exports.changeLeadStatus = async ({ body , params }) => {
   }
 };
 
-exports.bulkUploadLeads = async ({ body}) => {
+exports.bulkUploadLeads = async ({ body, user}) => {
   try {
-    return await services.leadUpload(body);
+    return await services.leadUpload( body, user);
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
