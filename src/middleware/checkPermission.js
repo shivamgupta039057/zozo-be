@@ -1,18 +1,33 @@
-const Role = require("../pgModels/roleModel");
-const Permission = require("../pgModels/permissionModel");
+const {PermissionTemplateModel,UserModel,MainMenuModel,TemplatePermissionModel } = require("../pgModels/index");
 
-const checkPermission = (permissionName) => {
+module.exports = (menuId, action) => {
   return async (req, res, next) => {
-    const role = await Role.findByPk(req.user.roleId, {
-      include: Permission
+    const userId = req.user.id; 
+
+    const user = await UserModel.findByPk(userId, {
+      include: {
+        model: PermissionTemplateModel,
+        include: {
+          model: TemplatePermissionModel,
+          include: MainMenuModel,
+        },
+      },
     });
 
-    const allowed = role.Permissions.some((p) => p.name === permissionName);
+    let allowed = false;
 
-    if (!allowed) return res.status(403).json({ error: "Permission denied" });
+    user.PermissionTemplates.forEach((template) => {
+      template.TemplatePermissions.forEach((perm) => {
+        if (perm.MainMenuModel.id === menuId && perm[`can${action}`]) {
+          allowed = true;
+        }
+      });
+    });
+
+    if (!allowed) {
+      return res.status(403).json({ message: "Permission Denied" });
+    }
 
     next();
   };
 };
-
-module.exports = checkPermission;

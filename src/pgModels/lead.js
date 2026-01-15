@@ -3,8 +3,6 @@ const sequelize = require("../config/postgres.config");
 
 
 
-const { Campaign } = require("./index");
-
 const Lead = sequelize.define(
   "Lead",
   {
@@ -13,22 +11,7 @@ const Lead = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
-    campaign_id: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: "campaigns",
-      stage_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: {
-          model: "leadstage",
-          key: "id",
-        },
-      },
-        key: "id",
-      },
-      allowNull: true,
-    },
+
     name: {
       type: DataTypes.STRING,
       allowNull: true,

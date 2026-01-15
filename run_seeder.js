@@ -2,12 +2,17 @@
 // Script to run all seeders safely (idempotent)
 require('dotenv').config();
 const seedData = require('./src/seed/seedData');
+const permissionTemplateSeeder = require('./src/seed/permissionTemplateSeeder');
 const insertDefaultLeadFields = require('./src/seed/leadFieldDefaults');
 const { sequelize, LeadField, initDB } = require('./src/pgModels/index');
 
 async function runSeeders() {
   try {
     await initDB(); // Ensure DB connection and sync
+
+    // Always seed permission templates
+    await permissionTemplateSeeder();
+
     // Check if roles already exist
     const [roleCount] = await sequelize.query('SELECT COUNT(*) as count FROM "Roles"');
     if (roleCount[0].count > 0) {

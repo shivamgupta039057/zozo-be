@@ -12,4 +12,8 @@ router.get('/getTemplatesName', responseHandler(controllers.getTemplatesName));
 router.post('/createPermissionTemplate', responseHandler(controllers.createPermissionTemplate));
 router.post('/updatePermissionTemplate/:id', responseHandler(controllers.updatePermissionTemplate));
 
+router.get('/menu-list', responseHandler(controllers.getMenuList));
+
+// Get permissions for the logged-in user
+router.get('/user-permissions', auth, responseHandler(controllers.getUserPermissions));
 module.exports = router;
