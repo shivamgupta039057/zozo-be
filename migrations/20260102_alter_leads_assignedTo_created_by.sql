@@ -1,0 +1,3 @@
+-- ALTER TABLE "leads"
+--   ALTER COLUMN "assignedTo" TYPE INTEGER USING NULLIF("assignedTo", '')::integer,
+--   ALTER COLUMN "created_by" TYPE INTEGER USING NULLIF("created_by", '')::integer;

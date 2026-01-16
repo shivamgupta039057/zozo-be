@@ -11,6 +11,9 @@ const WorkflowRules = sequelize.define("WorkflowRules", {
         primaryKey: true,
         autoIncrement: true 
     },
+    type:{
+        type:DataTypes.STRING
+    },
     Status_id: { 
         type: DataTypes.INTEGER, 
         allowNull: false,
@@ -46,13 +49,12 @@ const WorkflowRules = sequelize.define("WorkflowRules", {
 
 // Associations
 
-// Associate WorkflowRules to LeadStatus via Status_id
-WorkflowRules.belongsTo(LeadStatus, { foreignKey: "Status_id", as: "status" }); 
-LeadStatus.hasMany(WorkflowRules, { foreignKey: "Status_id", as: "workflowRules" });
+/* ============================
+   ASSOCATIONS (FIXED)
+================================ */
 
-// WorkflowRules to WorkFlowQueue relation
-WorkflowRules.hasMany(WorkFlowQueue, { foreignKey: "workflow_ruleID", as: "queueEntries" });
-WorkFlowQueue.belongsTo(WorkflowRules, { foreignKey: "workflow_ruleID", as: "workflowRule" });
+
+
 
 /**
  * Check if there are any entries for this workflow rule in the queue.

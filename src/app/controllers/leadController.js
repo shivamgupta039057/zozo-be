@@ -1,9 +1,11 @@
+
 const services = require('../services/leadServices.js');
 const { statusCode } = require('../../config/default.json');
 
-exports.createLead = async ({ body }) => {
+exports.createLead = async ({ body, user }) => {
   try {
-    return await services.addLead(body);
+    // Pass user info to service
+    return await services.addLead(body, user);
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -30,6 +32,7 @@ exports.generateLead = async ({ query }) => {
 };
 
 exports.changeLeadStatus = async ({ body , params }) => {
+  
   try {
     return await services.changeStatus(body , params);
   } catch (error) {
@@ -41,9 +44,9 @@ exports.changeLeadStatus = async ({ body , params }) => {
   }
 };
 
-exports.bulkUploadLeads = async ({ body}) => {
+exports.bulkUploadLeads = async ({ body, user}) => {
   try {
-    return await services.leadUpload(body);
+    return await services.leadUpload( body, user);
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -62,6 +65,20 @@ exports.getStageStatusStructure = async ({ query }) => {
   } catch (error) {
     console.log("errorerror" , error);
     
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+
+// Bulk assign leads to users by percentage
+exports.bulkAssignLeads = async ({ body }) => {
+  try {
+    return await services.bulkAssignLeads(body);
+  } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,

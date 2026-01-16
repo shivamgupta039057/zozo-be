@@ -1,0 +1,2 @@
+-- UPDATE "leads" SET "assignedTo" = NULL WHERE "assignedTo" = '';
+-- UPDATE "leads" SET "created_by" = NULL WHERE "created_by" = '';
