@@ -1,6 +1,9 @@
 const { Sequelize } = require('sequelize');
 const devConfig = require('./dev.config');
 
+console.log("devConfig" , devConfig);
+
+
 
 const sequelize = new Sequelize(
   devConfig.PG_DB,      // Database name
@@ -9,8 +12,8 @@ const sequelize = new Sequelize(
 
   {
     host: devConfig.PG_HOST,
-    dialect: "postgres",
-    port: 5432,
+    dialect: devConfig.PG_DIALECT,
+    port: devConfig.DB_PORT,
     logging: false,
   }
 );
