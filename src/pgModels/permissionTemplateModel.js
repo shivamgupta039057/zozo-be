@@ -1,16 +1,11 @@
 module.exports = (sequelize, DataTypes) => {
   const PermissionTemplate = sequelize.define("PermissionTemplate", {
-    templateName: {
-      type: DataTypes.STRING,
-      unique: true
-    },
-    permissions: {
-      type: DataTypes.JSONB,
-      defaultValue: {}
-    }
+    name: DataTypes.STRING,
+    description: DataTypes.STRING,
   }, {
-    // tableName: 'permission_templates',
     timestamps: true
   });
+
+
   return PermissionTemplate;
 };

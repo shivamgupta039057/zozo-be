@@ -3,8 +3,6 @@ const sequelize = require("../config/postgres.config");
 
 
 
-const { Campaign } = require("./index");
-
 const Lead = sequelize.define(
   "Lead",
   {

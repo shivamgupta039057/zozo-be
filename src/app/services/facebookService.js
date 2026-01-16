@@ -129,7 +129,6 @@ const { fetchFacebookLead, applyFieldMapping, assignLeadByPercentage } = require
 const { sequelize,
   FacebookConnection, FacebookIntegration,
   FbFieldMapping, FbLeadDistributionState, FbLeadDistributionRule,
-  Campaign,
   RawFacebookLead
 } = require('../../pgModels/index');
 

@@ -306,7 +306,7 @@ exports.loginUser = async (body) => {
 
         include: [
     { model: RoleModel, as: 'role', attributes: ["id", "roleName"] },
-    { model: PermissionTemplateModel, as: 'template', attributes: ["id", "templateName"] },
+    // { model: PermissionTemplateModel, as: 'template', attributes: ["id", "templateName"] },
   ],
     });
     console.log(user.role.roleName, "userrrrrr")
@@ -349,7 +349,7 @@ exports.loginUser = async (body) => {
           email: user.email,
           phone: user.phone,
           role: user.role ? user.role.roleName : null,
-          permissionTemplate: user.template ? user.template.templateName : null,
+          // permissionTemplate: user.template ? user.template.templateName : null,
         },
       },
     };
@@ -376,11 +376,11 @@ exports.getProfileList = async (query, user) => {
           as: 'role',
           attributes: ['id', 'roleName'],
         },
-        {
-          model: PermissionTemplateModel,
-          as: 'template',
-          attributes: ['id', 'templateName'],
-        },
+        // {
+        //   model: PermissionTemplateModel,
+        //   as: 'template',
+        //   attributes: ['id', 'templateName'],
+        // },
         {
           model: UserModel, // Manager of this user
           as: 'manager',   // must match self-association alias in model
