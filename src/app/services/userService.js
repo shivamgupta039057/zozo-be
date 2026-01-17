@@ -1,8 +1,8 @@
 const { statusCode, resMessage } = require("../../config/default.json");
 const bcrypt = require("bcrypt");
-const Role = require("../../pgModels/roleModel");
-const PermissionTemplate = require("../../pgModels/permissionTemplateModel");
-const UserModel = require('../../pgModels/userModel')
+// const Role = require("../../pgModels/roleModel");
+
+const {UserModel,RoleModel,PermissionTemplateModel} = require('../../pgModels/index');
 const jwt = require("jsonwebtoken");
 
 
@@ -21,7 +21,7 @@ exports.addUser = async (body) => {
         message: "Email already exists",
       };
     }
-    const role = await Role.findByPk(roleId);
+    const role = await RoleModel.findByPk(roleId);
     if (!role) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -32,9 +32,14 @@ exports.addUser = async (body) => {
     }
 
 
-    const permissionTemplate = await PermissionTemplate.findByPk(permissionTemplateId);
+    const permissionTemplate = await PermissionTemplateModel.findByPk(permissionTemplateId);
     if (!permissionTemplate) {
-      return res.status(400).json({ message: "Invalid permissionTemplateId" });
+      
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "Invalid permissionTemplateId"
+      };
     }
 
     let manager = null;
@@ -153,12 +158,12 @@ exports.getUserList = async (query) => {
       where: whereClause,
       include: [
         {
-          model: Role,
+          model: RoleModel,
           as: 'role',
           attributes: ['id', 'roleName'],
         },
         {
-          model: PermissionTemplate,
+          model: PermissionTemplateModel,
           as: 'template',
           attributes: ['id', 'templateName'],
         },
@@ -226,7 +231,7 @@ exports.editUser = async (params, body) => {
 
     // ✅ Validate roleId if provided
     if (roleId) {
-      const role = await Role.findByPk(roleId);
+      const role = await RoleModel.findByPk(roleId);
       if (!role) {
         return {
           statusCode: statusCode.BAD_REQUEST,
@@ -238,7 +243,7 @@ exports.editUser = async (params, body) => {
 
     // ✅ Validate permissionTemplateId if provided
     if (permissionTemplateId) {
-      const permissionTemplate = await PermissionTemplate.findByPk(permissionTemplateId);
+      const permissionTemplate = await PermissionTemplateModel.findByPk(permissionTemplateId);
       if (!permissionTemplate) {
         return {
           statusCode: statusCode.BAD_REQUEST,
@@ -300,10 +305,11 @@ exports.loginUser = async (body) => {
       where: { email },
 
         include: [
-    { model: Role, as: 'role', attributes: ["id", "roleName"] },
-    { model: PermissionTemplate, as: 'template', attributes: ["id", "templateName"] },
+    { model: RoleModel, as: 'role', attributes: ["id", "roleName"] },
+    // { model: PermissionTemplateModel, as: 'template', attributes: ["id", "templateName"] },
   ],
     });
+    console.log(user.role.roleName, "userrrrrr")
 
     if (!user) {
       return {
@@ -342,8 +348,8 @@ exports.loginUser = async (body) => {
           name: user.name,
           email: user.email,
           phone: user.phone,
-          role: user.Role ? user.Role.name : null,
-          permissionTemplate: user.PermissionTemplate ? user.PermissionTemplate.name : null,
+          role: user.role ? user.role.roleName : null,
+          // permissionTemplate: user.template ? user.template.templateName : null,
         },
       },
     };
@@ -366,15 +372,15 @@ exports.getProfileList = async (query, user) => {
       where: { id: user.id },
       include: [
         {
-          model: Role,
+          model: RoleModel,
           as: 'role',
           attributes: ['id', 'roleName'],
         },
-        {
-          model: PermissionTemplate,
-          as: 'template',
-          attributes: ['id', 'templateName'],
-        },
+        // {
+        //   model: PermissionTemplateModel,
+        //   as: 'template',
+        //   attributes: ['id', 'templateName'],
+        // },
         {
           model: UserModel, // Manager of this user
           as: 'manager',   // must match self-association alias in model

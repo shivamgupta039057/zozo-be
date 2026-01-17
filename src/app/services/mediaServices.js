@@ -1,0 +1,88 @@
+const axios = require("axios");
+const Lead = require("../../pgModels/lead");
+const WhatsappChat = require("../../pgModels/whatsapp/WhatsappChat");
+const WhatsappMessage = require("../../pgModels/whatsapp/WhatsappMessage");
+const MediaLibrary = require("../../pgModels/MediaLibrary");
+
+const getMediaType = (mime) => {
+  if (mime.startsWith("image")) return "image";
+  if (mime.startsWith("video")) return "video";
+  if (mime.startsWith("audio")) return "audio";
+  return "document";
+};
+
+
+exports.uploadMediaService = async (file, body, user) => {
+  try {
+    if (!file) {
+      return {
+        statusCode: 400,
+        success: false,
+        message: "File is required"
+      };
+    }
+
+    console.log("file, body, userfile, body, userfile, body, user" , file, body, user);
+    
+
+    const media = await MediaLibrary.create({
+      original_name: file.originalname,
+      file_name: file.filename,
+      media_type: getMediaType(file.mimetype),
+      mime_type: file.mimetype,
+      file_size: file.size,
+      file_url: `/uploads/${body.image}`, // path added by middleware
+      uploaded_by: user?.id || null
+    });
+
+    return {
+      statusCode: 200,
+      success: true,
+      message: "Media uploaded successfully",
+      data: media
+    };
+
+  } catch (error) {
+    return {
+      statusCode: 400,
+      success: false,
+      message: error.message
+    };
+  }
+};
+
+
+exports.getMediaService = async (query) => {
+  try {
+    let condition = {};
+
+    if (query.type) {
+      condition.media_type = query.type;
+    }
+
+    const media = await MediaLibrary.findAll({
+      where: condition
+    });
+
+    return {
+      statusCode: 200,
+      success: true,
+      message: "Media retrieved successfully",
+      data: media
+    };
+
+  } catch (error) {
+    return {
+      statusCode: 400,
+      success: false,
+      message: error.message
+    };
+  }
+};
+
+
+
+
+
+
+

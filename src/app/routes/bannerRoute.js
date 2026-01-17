@@ -9,7 +9,8 @@ const upload = require('../../helper/multer');
 const { uploadFile } = require("../../helper/fileUploader");
 // Get Homepage Data
 
-router.post('/addBanner', upload.single('image'), uploadFile, validate(bannerValidation) , responseHandler(controllers.addBannerPage));
+
+router.post('/addBanner', auth, upload.single('image'), uploadFile, validate(bannerValidation), responseHandler(controllers.addBannerPage));
 
 
 

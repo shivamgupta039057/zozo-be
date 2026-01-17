@@ -66,3 +66,29 @@ exports.updatePermissionTemplate = async ({param,body}) => {
     };
   }
 };
+
+
+exports.getMenuList = async () => {
+  try {
+    return await services.getMenuList();
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+// Get permissions for the logged-in user
+exports.getUserPermissions = async ({ user }) => {
+  try {
+    return await services.getUserPermissions(user.id);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};

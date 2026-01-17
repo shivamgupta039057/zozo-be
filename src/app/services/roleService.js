@@ -1,12 +1,12 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const Role = require("../../pgModels/roleModel");
+const {RoleModel} = require("../../pgModels");
 
 
 exports.getRoles = async () => {
   try {
     
     
-    const roles = await Role.findAll();
+    const roles = await RoleModel.findAll();
 
     return {
       statusCode: statusCode.OK,

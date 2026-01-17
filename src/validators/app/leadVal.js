@@ -5,13 +5,15 @@ exports.leadValidation = Joi.object({
     data: Joi.object().unknown(true).required(),
     source: Joi.string().trim().required(),
     notes: Joi.string().trim().optional(),
+     name: Joi.string().trim().required(),
+    whatsapp_number: Joi.string().trim().required(),
   });
   
 
 // Joi validation schema for LeadField model
 exports.
 leadFieldValidation = Joi.object({
-    lable: Joi.string().trim().required(),
+    label: Joi.string().trim().required(),
     type: Joi.string().valid(
         "checkbox",
         "date",
@@ -26,8 +28,8 @@ leadFieldValidation = Joi.object({
     ).required(),
     options: Joi.array().items(
         Joi.object({
-            label: Joi.string().trim().required(),
-            value: Joi.string().trim().required(),
+            id: Joi.number().optional(),
+            name: Joi.string().trim().optional(),
             order: Joi.number().integer().optional()
         })
     ).optional(),
@@ -51,6 +53,8 @@ exports.leadStatusValidation = Joi.object({
     stage_id: Joi.number().required(),
     name: Joi.string().trim().required(),
     color: Joi.string().allow(null, "").optional(),
+    is_default:Joi.boolean().optional(),
+    order: Joi.number().integer().optional(),
 });
 
 // Joi validation schema for LeadReason model

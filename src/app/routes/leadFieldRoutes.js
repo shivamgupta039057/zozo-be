@@ -6,12 +6,13 @@ const validate = require("../../helper/validate");
 const { leadFieldValidation } = require("../../validators/app/leadVal.js");
 const upload = require('../../helper/multer');
 const { uploadFile } = require("../../helper/fileUploader");
+const auth = require("../../middleware/auth");
 
-router.post('/addLeadfield', validate(leadFieldValidation), responseHandler(controller.createLeadFieldController));
-router.get('/getfieldlist', responseHandler(controller.getLeadFieldsController));
-router.post('/updatefieldlist/:id', responseHandler(controller.updateLeadFieldController));
-router.post('/deletefieldlist/:id', responseHandler(controller.deleteLeadFieldController));
-router.get('/reorderfieldlist', responseHandler(controller.reorderLeadFieldController));
+router.post('/addLeadfield', auth, validate(leadFieldValidation), responseHandler(controller.createLeadFieldController));
+router.get('/getfieldlist', auth, responseHandler(controller.getLeadFieldsController));
+router.post('/updatefieldlist/:leadId', auth, responseHandler(controller.updateLeadFieldController));
+router.post('/deletefieldlist/:id', auth, responseHandler(controller.deleteLeadFieldController));
+router.get('/reorderfieldlist', auth, responseHandler(controller.reorderLeadFieldController));
 
 
 module.exports = router;

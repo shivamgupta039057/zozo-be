@@ -1,9 +1,6 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-// const Lead = require("../../pgModels/lead");
-const leadfield = require("../../pgModels/leadField");
-const LeadStatus = require("../../pgModels/LeadStages/leadStatus");
-const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
-const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
+const OnLeadFieldChange = require("../../utils/OnLeadFieldChange");
+const {LeadField,Lead}= require("../../pgModels");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -12,17 +9,21 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
  * @throws Will throw an error if there is a database error.
  */
 exports.createLeadField = async (body) => {
-  console.log("fdsfkljsdfdklfdjs", body);
 
+  console.log("bodybodybodydddddddddddddd" , body);
+  
   try {
-    const { lable, ...rest } = body;
+    const { label, ...rest } = body;
 
-    const existingField = await leadfield.findOne({
+    // let a=await LeadField.findAll();
+    // console.log("aaaaaaaaaa" , a);
+    const existingField = await LeadField.findOne({
       where: {
-        lable: lable,
+        label: label
       },
     });
 
+    console.log("existingFieldexistingField" , existingField);
     if (existingField) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -31,10 +32,10 @@ exports.createLeadField = async (body) => {
       };
     }
 
-    const name = lable.toLowerCase().trim().replace(/\s+/g, "_");
+    const name = label.toLowerCase().trim().replace(/\s+/g, "_");
     
     
-     const maxOrderStatus = await leadfield.findOne({
+     const maxOrderStatus = await LeadField.findOne({
      order: [["order", "DESC"]],
      attributes: ["order"],
     });
@@ -43,7 +44,7 @@ exports.createLeadField = async (body) => {
 
    
 
-    const leadfiled = await leadfield.create({ ...rest, lable, name , order: nextOrder });
+    const leadfiled = await LeadField.create({ ...rest, label:label, name , order: nextOrder });
     
     return {
       statusCode: statusCode.OK,
@@ -61,14 +62,19 @@ exports.createLeadField = async (body) => {
 };
 
 exports.getAllLeadFields = async (query) => {
-  const { page = 1, limit = 10} = query;
+  const { page = 1, limit = 10 } = query;
   try {
-    const getfield = await leadfield.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadField.findAll({ order: [["order", "ASC"]] });
+
+    // Create array of { number: i+1, name: leadfield.name }
+    // const whatsappNumber = await Lead.findOne({ where: { name: "whatsapp_number" } });
+
     return {
       statusCode: statusCode.OK,
       success: true,
       message: resMessage.GET_LEAD_FIELD_Data,
       data: getfield,
+      // whatsappNumber, // Add numbered key-name pairs to response
     };
   } catch (error) {
     return {
@@ -79,59 +85,77 @@ exports.getAllLeadFields = async (query) => {
   }
 };
 
-exports.updateLeadFieldServices = async (params , body) => {
-  const { id } = params;
+exports.updateLeadFieldServices = async (params, body) => {
+
+  console.log("bodybodybody" , body);
+  
+  const { leadId } = params; // expect: id = leadFieldId, leadId = lead id (optional)
   try {
-    const updatefield = await leadfield.update(
-      { ...body },
-      {
-        where: { id: id },
+
+    let dataTemp = null;
+    let leadData = null;
+
+    // If a leadId is given (for OnLeadFieldChange logic)
+    if (leadId) {
+       leadData = await Lead.findByPk(leadId);
+      if (!leadData) {
+        return {
+          statusCode: statusCode.NOT_FOUND,
+          success: false,
+          message: "Lead not found",
+        };
       }
-    );
+      console.log("leadDataleadData" , leadId);
+      // Extract the dynamic key from the body object (assumes body has exactly one key)
+      const fieldKey = body && typeof body === 'object' ? Object.keys(body)[0] : undefined;
+      const fieldvalue = body && typeof body === 'object' ? Object.values(body)[0] : undefined;
 
-      // Check workflow rules
-      const workflowRule = await WorkflowRules.findOne({
-        where: { Status_id: id },
-      });
 
-      if (workflowRule && workflowRule.action_data) {
-        console.log(
-          "Workflow Template for this status:",
-          workflowRule.action_data
-        );
+     const leadFieldData = await LeadField.findOne({ where: { name: fieldKey } });
 
-        // Find the related lead_id from leadfield
-        const leadFieldRecord = await leadfield.findByPk(id);
-        const lead_id = leadFieldRecord.id; // assuming leadfield table has lead_id
+     if (!leadFieldData) {
+      return {
+        statusCode: statusCode.NOT_FOUND,
+        success: false,
+        message: "Lead field not found",
+      };
+    }
 
-        // Check for existing queue entry
-        let queueEntry = await WorkFlowQueue.findOne({
-          where: {
-            workflow_ruleID: workflowRule.id,
-          },
-        });
 
-        if (queueEntry) {
-          await queueEntry.update({
-            Status: "executed",
-            executed_At: null,
-          });
-        } else {
-          await WorkFlowQueue.create({
-            lead_id: lead_id,
-            workflow_ruleID: workflowRule.id,
-            Status: "processing",
-          });
-        }
+      console.log("hasNameKeyhasNameKeyhasNameKeyhasNameKey" , leadFieldData);
+      
+      
+      if (typeof OnLeadFieldChange === "function") {
+        console.log("Calling OnLeadFieldChange function...");
+        dataTemp = await OnLeadFieldChange(leadData, leadFieldData , fieldvalue);
+      } else {
+        console.log("OnLeadFieldChange is not a function:", typeof OnLeadFieldChange);
       }
+    }
+    console.log("dataTempdataTempdataTemp" , dataTemp);
+
     
+    const currentData = (leadData.dataValues && leadData.dataValues.data) ? { ...leadData.dataValues.data } : {};
 
+    // Find the key in body that should update the data object (single key assumed)
+    const updateKey = body && typeof body === 'object' ? Object.keys(body)[0] : undefined;
+    if (updateKey && Object.prototype.hasOwnProperty.call(currentData, updateKey)) {
+      // Update value in data if key matches
+      currentData[updateKey] = body[updateKey];
+    }
+  console.log("currentDatacurrentDatacurrentData" , currentData);
+  
+     const updateResult = await Lead.update(
+      { data: currentData },
+      { where: { id: leadId } }
+    );
 
     return {
       statusCode: statusCode.OK,
       success: true,
+      dataTemp,
       message: resMessage.UPDATE_LEAD_FIELD_Data,
-      data: updatefield,
+      data: updateResult,
     };
   } catch (error) {
     return {
@@ -146,7 +170,7 @@ exports.updateLeadFieldServices = async (params , body) => {
 exports.deleteLeadField = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await leadfield.destroy(
+    const updatefield = await LeadField.destroy(
       {
         where: { id: id },
       }
@@ -170,8 +194,8 @@ exports.deleteLeadField = async (params) => {
 exports.reorderLeadField = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const leadsName = await leadfield.findAll({ 
-      attributes: ['lable'], 
+    const leadsName = await LeadField.findAll({ 
+      attributes: ['label'], 
       order: [["order", "ASC"]] 
     });
     return {

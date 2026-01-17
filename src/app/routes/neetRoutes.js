@@ -9,12 +9,9 @@ const upload = require('../../helper/multer');
 const { uploadFile } = require("../../helper/fileUploader");
 // Get Homepage Data
 
-router.post('/addNeetFeature', upload.single('image'), uploadFile, validate(neetFeatureValidation) , responseHandler(controllers.addNeetFeaturePage));
 
-router.post('/addNeetProduct', upload.single('image'), uploadFile, validate(neetProductValidation) , responseHandler(controllers.addNeetProductPage));
-
-
-router.post('/addNeetProduct', upload.single('image'), uploadFile, validate(neetProductValidation) , responseHandler(controllers.addNeetProductPage));
+router.post('/addNeetFeature', auth, upload.single('image'), uploadFile, validate(neetFeatureValidation), responseHandler(controllers.addNeetFeaturePage));
+router.post('/addNeetProduct', auth, upload.single('image'), uploadFile, validate(neetProductValidation), responseHandler(controllers.addNeetProductPage));
 
 
 

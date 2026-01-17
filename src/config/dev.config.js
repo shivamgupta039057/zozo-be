@@ -7,9 +7,11 @@ module.exports = {
   PG_DB: process.env.PG_DB || "visuti_userdb",
   PG_USER: process.env.PG_USER || "postgres",
   PG_PASS: process.env.PG_PASS || "1234",
+  DB_PORT: process.env.DB_PORT || 5433,
   // PG_PASS: process.env.PG_PASS || 'visutiCarrer',
   PG_DIALECT: process.env.PG_DIALECT || "postgres",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
+
   // EMAIL_CONFIG: {
   //     host: process.env.smshost,
   //     port: process.env.smsport,
@@ -23,6 +25,7 @@ module.exports = {
   ADMINPORT: process.env.ADMINPORT || 6161,
   CRONPORT: process.env.CRONPORT || 6363,
   DB_URL: process.env.DB_URL,
+  SOCKET_PORT: process.env.SOCKET_PORT || 3131,
   // FCM_SERVER_KEY: process.env.FCM_SERVER_KEY,
   // apk: '----',
   // rapidApiKey: process.env.api_key,

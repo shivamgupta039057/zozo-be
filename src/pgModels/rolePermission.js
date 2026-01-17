@@ -1,10 +1,9 @@
 const sequelize = require("../config/postgres.config");
-const Role = require("./roleModel");
-const Permission = require("./permissionModel");
+const { RoleModel, PermissionModel } = require("./index");
 
 const RolePermission = sequelize.define("Role_Permission", {}, { timestamps: false });
 
-Role.belongsToMany(Permission, { through: RolePermission });
-Permission.belongsToMany(Role, { through: RolePermission });
+RoleModel.belongsToMany(PermissionModel, { through: RolePermission });
+PermissionModel.belongsToMany(RoleModel, { through: RolePermission });
 
 module.exports = RolePermission;
