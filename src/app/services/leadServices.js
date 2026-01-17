@@ -8,6 +8,7 @@ const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
 const { log } = require("console");
+const OnLeadStatusChange = require("../../utils/OnLeadStatusChange");
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -37,38 +38,7 @@ exports.addLead = async (body, user) => {
       assignedTo: user?.id || null,
       created_by: user?.id || null,
     });
-
-    const workflowRule = await WorkflowRules.findOne({
-      where: { type: "ManualLead" },
-    });
-
-    if (workflowRule && workflowRule.action_data) {
-      console.log(
-        "Workflow Template for this status:",
-        workflowRule.action_data
-      );
-
-      // Check for existing queue entry
-      let queueEntry = await WorkFlowQueue.findOne({
-        where: {
-          workflow_ruleID: workflowRule.id,
-        },
-      });
-
-      if (queueEntry) {
-        await queueEntry.update({
-          Status: "executed",
-          executed_At: null,
-        });
-      } else {
-        await WorkFlowQueue.create({
-          lead_id: lead_id,
-          workflow_ruleID: workflowRule.id,
-          Status: "processing",
-        });
-      }
-    }
-
+    
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -369,8 +339,107 @@ exports.getAllLeads = async (query) => {
 };
 
 
+// exports.changeStatus = async (body, params) => {
+//   try {
+//     const { leadId } = params;
+//     const { statusId } = body;
+
+//     if (!leadId || !statusId) {
+//       return {
+//         statusCode: statusCode.BAD_REQUEST,
+//         success: false,
+//         message: "lead_id and status_id are required",
+//       };
+//     }
+
+//     // Check if the lead exists
+//     const leadData = await Lead.findByPk(leadId);
+//     if (!leadData) {
+//       return {
+//         statusCode: statusCode.NOT_FOUND,
+//         success: false,
+//         message: "Lead not found",
+//       };
+//     }
+
+//     // Check if the new status is valid
+//     const status = await LeadStatus.findByPk(statusId, {
+//       include: [{ model: LeadStage, as: "stage" }],
+//     });
+//     if (!status) {
+//       return {
+//         statusCode: statusCode.NOT_FOUND,
+//         success: false,
+//         message: "Invalid status_id",
+//       };
+//     }
+
+//     // Workflow: check if this status has any workflow rules
+//     const workflowRule = await WorkflowRules.findOne({
+//       where: { Status_id: statusId },
+//     });
+
+//     // If a workflow rule with template exists: log the template, add/update queue
+//     if (workflowRule && workflowRule.action_data) {
+//       // Console the template
+//       console.log(
+//         "Workflow Template for this status:",
+//         workflowRule.action_data
+//       );
+
+//       // Find if there is already an entry in the queue for this (lead, workflowRule)
+//       let queueEntry = await WorkFlowQueue.findOne({
+//         where: {
+//           lead_id: leadId,
+//           workflow_ruleID: workflowRule.id,
+//         },
+//       });
+
+//       if (queueEntry) {
+//         // Update the status to 'processing'
+//         await queueEntry.update({
+//           Status: "executed",
+//           executed_At: null,
+//         });
+//       } else {
+//         // Create an entry in queue with 'processing' status for this lead and workflow rule
+//         await WorkFlowQueue.create({
+//           lead_id: leadId,
+//           workflow_ruleID: workflowRule.id,
+//           Status: "processing",
+//         });
+//       }
+//     }
+
+//     // Update the lead with new status and stage
+//     await leadData.update({
+//       status_id: status.id,
+//       stage_id: status.stage_id,
+//     });
+
+//     const updatedLead = await Lead.findByPk(leadId, {
+//       include: [{ model: LeadStatus, as: "status" }],
+//     });
+
+//     return {
+//       statusCode: statusCode.OK,
+//       success: true,
+//       message:
+//         resMessage.LEAD_STATUS_UPDATED || "Lead status updated successfully",
+//       data: updatedLead,
+//     };
+//   } catch (error) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: error.message,
+//     };
+//   }
+// };
+
 exports.changeStatus = async (body, params) => {
   try {
+    let dataTemp;
     const { leadId } = params;
     const { statusId } = body;
 
@@ -381,7 +450,6 @@ exports.changeStatus = async (body, params) => {
         message: "lead_id and status_id are required",
       };
     }
-
     // Check if the lead exists
     const leadData = await Lead.findByPk(leadId);
     if (!leadData) {
@@ -391,8 +459,7 @@ exports.changeStatus = async (body, params) => {
         message: "Lead not found",
       };
     }
-
-    // Check if the new status is valid
+    // Check if the new status is valid and has an associated stage
     const status = await LeadStatus.findByPk(statusId, {
       include: [{ model: LeadStage, as: "stage" }],
     });
@@ -404,47 +471,32 @@ exports.changeStatus = async (body, params) => {
       };
     }
 
-    // Workflow: check if this status has any workflow rules
-    const workflowRule = await WorkflowRules.findOne({
-      where: { Status_id: statusId },
-    });
+    console.log("leadDataleadDataleadData" , leadData);
+    
+     console.log("leadIdleadIdleadIdleadIdleadIdleadId" , leadId ,  statusId);
 
-    // If a workflow rule with template exists: log the template, add/update queue
-    if (workflowRule && workflowRule.action_data) {
-      // Console the template
-      console.log(
-        "Workflow Template for this status:",
-        workflowRule.action_data
-      );
+    // If there is no associated stage
+    if (!status.stage_id && (!status.stage || !status.stage.id)) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "leadstage is not associated to lead_statuses!",
+      };
+    }
 
-      // Find if there is already an entry in the queue for this (lead, workflowRule)
-      let queueEntry = await WorkFlowQueue.findOne({
-        where: {
-          lead_id: leadId,
-          workflow_ruleID: workflowRule.id,
-        },
-      });
-
-      if (queueEntry) {
-        // Update the status to 'processing'
-        await queueEntry.update({
-          Status: "executed",
-          executed_At: null,
-        });
-      } else {
-        // Create an entry in queue with 'processing' status for this lead and workflow rule
-        await WorkFlowQueue.create({
-          lead_id: leadId,
-          workflow_ruleID: workflowRule.id,
-          Status: "processing",
-        });
-      }
+    // Optionally pass both lead and new status for potential logic
+    if (typeof OnLeadStatusChange === "function") {
+      console.log("Calling OnLeadStatusChange function...");
+       dataTemp = await OnLeadStatusChange(leadData, statusId);
+      
+    } else {
+      console.log("OnLeadStatusChange is not a function:", typeof OnLeadStatusChange);
     }
 
     // Update the lead with new status and stage
     await leadData.update({
       status_id: status.id,
-      stage_id: status.stage_id,
+      stage_id: status.stage_id || (status.stage && status.stage.id),
     });
 
     const updatedLead = await Lead.findByPk(leadId, {
@@ -457,6 +509,7 @@ exports.changeStatus = async (body, params) => {
       message:
         resMessage.LEAD_STATUS_UPDATED || "Lead status updated successfully",
       data: updatedLead,
+      dataTemp      
     };
   } catch (error) {
     return {
@@ -466,6 +519,7 @@ exports.changeStatus = async (body, params) => {
     };
   }
 };
+
 
 /**
  * Bulk upload leads from Excel file data.
