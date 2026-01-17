@@ -2,7 +2,7 @@ const { statusCode, resMessage } = require("../../config/default.json");
 const bcrypt = require("bcrypt");
 // const Role = require("../../pgModels/roleModel");
 
-const {UserModel,RoleModel,PermissionTemplateModel} = require('../../pgModels/index');
+const {UserModel,RoleModel,PermissionTemplateModel,TemplatePermissionModel,MainMenuModel} = require('../../pgModels/index');
 const jwt = require("jsonwebtoken");
 
 
@@ -135,24 +135,6 @@ exports.getUserList = async (query) => {
     // Fetch all users with associated role and permission template
     const { roleId } = query
     const whereClause = roleId ? { roleId } : {};
-    // const users = await UserModel.findAll({
-    //   attributes: ['id', 'name', 'email', 'phone', 'createdAt', 'updatedAt'],
-    //   where:whereClause,
-    //   include: [
-    //     {
-    //       model: Role,
-    //       attributes: ['id', 'roleName'], // Only include role ID and roleName
-    //     },
-    //     {
-    //       model: PermissionTemplate,
-    //       attributes: ['id', 'templateName'], // Only include template ID and templateName
-    //     },
-    //   ],
-    //   order: [['createdAt', 'DESC']], // Optional: newest users first
-    // });
-
-    // Return formatted response
-
     const users = await UserModel.findAll({
       attributes: ['id', 'name', 'email', 'phone', 'createdAt', 'updatedAt'],
       where: whereClause,
@@ -162,11 +144,11 @@ exports.getUserList = async (query) => {
           as: 'role',
           attributes: ['id', 'roleName'],
         },
-        {
-          model: PermissionTemplateModel,
-          as: 'template',
-          attributes: ['id', 'templateName'],
-        },
+        // {
+        //   model: PermissionTemplateModel,
+        //   as: 'template',
+        //   attributes: ['id', 'templateName'],
+        // },
         {
           model: UserModel, // Manager of this user
           as: 'manager',   // must match self-association alias in model
@@ -366,33 +348,36 @@ exports.loginUser = async (body) => {
 
 exports.getProfileList = async (query, user) => {
   try {
-    // Fetch the profile of the currently authenticated user
-    const userProfile = await UserModel.findOne({
-      attributes: ['id', 'name', 'email', 'initials', 'phone', 'createdAt', 'updatedAt'],
-      where: { id: user.id },
-      include: [
-        {
-          model: RoleModel,
-          as: 'role',
-          attributes: ['id', 'roleName'],
-        },
-        {
-          model: PermissionTemplateModel,
-          as: 'template',
-          attributes: ['id', 'templateName'],
-        },
-        {
-          model: UserModel, // Manager of this user
-          as: 'manager',   // must match self-association alias in model
-          attributes: ['id', 'name', 'email'],
-        },
-        {
-          model: UserModel, // Users reporting to this user (reportees)
-          as: 'reportees', // must match self-association alias in model
-          attributes: ['id', 'name', 'email'],
-        },
-      ],
-    });
+    // Fetch user profile and permissions in parallel
+    const [userProfile, perms] = await Promise.all([
+      UserModel.findOne({
+        attributes: ['id', 'name', 'email', 'initials', 'phone', 'createdAt', 'updatedAt'],
+        where: { id: user.id },
+        include: [
+          {
+            model: RoleModel,
+            as: 'role',
+            attributes: ['id', 'roleName'],
+          },
+          {
+            model: UserModel, // Manager of this user
+            as: 'manager',
+            attributes: ['id', 'name', 'email'],
+          },
+          {
+            model: UserModel, // Users reporting to this user (reportees)
+            as: 'reportees',
+            attributes: ['id', 'name', 'email'],
+          },
+        ],
+      }),
+      TemplatePermissionModel.findAll({
+        where: { PermissionTemplateId: user.permissionTemplateId },
+        include: [
+          { model: MainMenuModel }
+        ]
+      })
+    ]);
 
     if (!userProfile) {
       return {
@@ -402,11 +387,36 @@ exports.getProfileList = async (query, user) => {
       };
     }
 
+    // Build permissions array with menu details
+    const permissions = perms.map(p => {
+      const menu = p.Menu || {};
+      return {
+        menuId: p.MenuId,
+        menuName: menu.name || null,
+        menuPath: menu.path || null,
+        menuOrder: menu.order || null,
+        isHeaderMenu: menu.isHeaderMenu || false,
+        create: p.canCreate,
+        view: p.canView,
+        edit: p.canEdit,
+        delete: p.canDelete
+      };
+    });
+
+    // Structure the profile response
+    const profileWithPermissions = {
+      ...userProfile.toJSON(),
+      role: userProfile.role ? userProfile.role.roleName : null,
+      manager: userProfile.manager || null,
+      reportees: userProfile.reportees || [],
+      permissions
+    };
+
     return {
       statusCode: statusCode.OK,
       success: true,
       message: "User profile fetched successfully",
-      data: userProfile,
+      data: profileWithPermissions,
     };
   } catch (error) {
     console.log(error, "getProfileList error");

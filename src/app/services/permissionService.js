@@ -21,11 +21,13 @@ exports.getPermssionTemplates = async () => {
           { model: MainMenuModel }
         ]
       });
+     
       const permissions = perms.map(p => ({
         menuId: p.MenuId,
-        menuName: p.MainMenuModel ? p.MainMenuModel.name : undefined,
-        menuPath: p.MainMenuModel ? p.MainMenuModel.path : undefined,
-        menuOrder: p.MainMenuModel ? p.MainMenuModel.order : undefined,
+        menuName: p.Menu ? p.Menu.name : undefined,
+        menuPath: p.Menu ? p.Menu.path : undefined,
+        menuOrder: p.Menu ? p.Menu.order : undefined,
+        isHeaderMenu: p.Menu ? p.Menu.isHeaderMenu : undefined,
         create: p.canCreate,
         view: p.canView,
         edit: p.canEdit,
@@ -190,9 +192,10 @@ exports.getUserPermissions = async (userId) => {
     });
     const permissions = perms.map(p => ({
       menuId: p.MenuId,
-      menuName: p.MainMenuModel ? p.MainMenuModel.name : undefined,
-      menuPath: p.MainMenuModel ? p.MainMenuModel.path : undefined,
-      menuOrder: p.MainMenuModel ? p.MainMenuModel.order : undefined,
+      menuName: p.Menu ? p.Menu.name : undefined,
+      menuPath: p.Menu ? p.Menu.path : undefined,
+      menuOrder: p.Menu ? p.Menu.order : undefined,
+      isHeaderMenu: p.Menu ? p.Menu.isHeaderMenu : undefined,
       create: p.canCreate,
       view: p.canView,
       edit: p.canEdit,

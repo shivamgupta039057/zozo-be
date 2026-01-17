@@ -34,3 +34,15 @@ BEGIN
 		ALTER TABLE main_menu ADD COLUMN "isActive" BOOLEAN DEFAULT TRUE;
 	END IF;
 END$$;
+
+
+-- Add 'isHeaderMenu' column if not exists
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM information_schema.columns 
+		WHERE table_name='main_menu' AND column_name='isHeaderMenu'
+	) THEN
+		ALTER TABLE main_menu ADD COLUMN "isHeaderMenu" BOOLEAN DEFAULT FALSE;
+	END IF;
+END$$;
