@@ -2,7 +2,7 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../config/postgres.config");
 const LeadStage = require("./LeadStages/LeadStage");
 const LeadStatus = require("./LeadStages/leadStatus");
-const LeadReason = require("./LeadStages/leadReason");
+const LeadReason = require("./LeadStages/LeadReason");
 
 const Lead = sequelize.define(
   "Lead",
