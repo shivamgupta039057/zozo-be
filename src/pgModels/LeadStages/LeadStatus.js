@@ -1,6 +1,5 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../../config/postgres.config");
-const LeadStage = require("./LeadStage");
 
 const LeadStatus = sequelize.define("lead_statuses", {
   id: {
@@ -39,13 +38,6 @@ const LeadStatus = sequelize.define("lead_statuses", {
   },
 }, { timestamps: true, tableName: "lead_statuses" });
 
-LeadStage.hasMany(LeadStatus, {
-  foreignKey: "stage_id",
-  as: "statuses",
-});
-LeadStatus.belongsTo(LeadStage, {
-  foreignKey: "stage_id",
-  as: "stage",
-});
+// Associations are defined in ../LeadStages/index.js
 
 module.exports = LeadStatus;

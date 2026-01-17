@@ -1,8 +1,10 @@
 const { statusCode, resMessage } = require("../../config/default.json");
 // const Lead = require("../../pgModels/lead");
+// Import index to initialize associations
+require("../../pgModels/LeadStages/index");
 const leadstage = require("../../pgModels/LeadStages/LeadStage");
 const { Op } = require("sequelize");
-const Leadstatus = require("../../pgModels/LeadStages/leadStatus");
+const Leadstatus = require("../../pgModels/LeadStages/LeadStatus");
 const Leadreason = require("../../pgModels/LeadStages/leadReason");
 
 /**
