@@ -49,24 +49,3 @@ LeadStatus.belongsTo(LeadStage, {
 });
 
 module.exports = LeadStatus;
-
-
-
-
-
-// [
-//   {
-//     "id": 3,
-//     "name": "Closed Stage",
-//     "statuses": [
-//       {
-//         "id": 10,
-//         "name": "Lost",
-//         "reasons": [
-//           { "id": 1, "reason": "Score doesn’t match" },
-//           { "id": 2, "reason": "Preparing for next year" }
-//         ]
-//       }
-//     ]
-//   }
-// ]

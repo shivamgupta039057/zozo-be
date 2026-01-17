@@ -9,9 +9,11 @@ module.exports = (sequelize, DataTypes) => {
     name: DataTypes.STRING, // user, calling, dashboard
     key: DataTypes.STRING,  // user, calling
     path: DataTypes.STRING,
-    icon: DataTypes.STRING,
+    icon: DataTypes.STRING, 
     order: DataTypes.INTEGER,
-    isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+    isHeaderMenu: { type: DataTypes.BOOLEAN, defaultValue: false },
+    
   }, {
     tableName: "main_menu",
     timestamps: true

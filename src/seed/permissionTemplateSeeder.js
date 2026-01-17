@@ -2,17 +2,30 @@
 const { MainMenuModel, PermissionTemplateModel, TemplatePermissionModel } = require("../pgModels/index");
 
 const menuList = [
-  { name: 'Dashboard', path: '/', order: 1 },
-  { name: 'Lead Fields', path: '/lead-fields', order: 2 },
-  { name: 'Lead Stages', path: '/lead-stages', order: 3 },
-  { name: 'Users', path: '/users', order: 4 },
-  { name: 'Permission Templates', path: '/permission-templates', order: 5 },
-  { name: 'View Lead', path: '/leads', order: 6 },
-  { name: 'Add From Excel', path: '/excel-upload', order: 7 },
-  { name: 'Whatapp', path: '/whatsapp-ui', order: 8 },
-  { name: 'Workflow', path: '/workflow', order: 9 },
-  { name: 'Integration', path: '/integrations', order: 10 },
+  { name: 'dashboard', path: '/', order: 1 },
+  { name: 'lead', path: '/leads', order: 2 },
+  { name: 'whatsapp', path: '/whatsapp-ui', order: 3 },
+  { name: 'integrations', path: '/integrations', order: 4 },
+  { name: 'lead-feilds', path: '/lead-feilds', order: 5,isHeaderMenu:true },
+  { name: 'lead-stages', path: '/lead-stages', order: 6,isHeaderMenu:true },
+  { name: 'users', path: '/users', order: 7 },
+  { name: 'permission-templates', path: '/permission-templates', order: 8,isHeaderMenu:true },
 ];
+
+
+
+  // { name: 'Dashboard', path: '/', order: 1 },
+  // { name: 'Lead Fields', path: '/lead-fields', order: 2 },
+  // { name: 'Lead Stages', path: '/lead-stages', order: 3 },
+  // { name: 'Users', path: '/users', order: 4 },
+  // { name: 'Permission Templates', path: '/permission-templates', order: 5 },
+  // { name: 'View Lead', path: '/leads', order: 6 },
+  // { name: 'Add From Excel', path: '/excel-upload', order: 7 },
+  // { name: 'Whatapp', path: '/whatsapp-ui', order: 8 },
+  // { name: 'Workflow', path: '/workflow', order: 9 },
+  // { name: 'Integration', path: '/integrations', order: 10 },
+
+
 
 const defaultPermissions = {
   name: "Default Root Permissions",
