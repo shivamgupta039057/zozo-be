@@ -1,7 +1,7 @@
 const { Sequelize } = require('sequelize');
 const devConfig = require('./dev.config');
 
-console.log("devConfig" , devConfig);
+
 
 
 

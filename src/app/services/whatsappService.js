@@ -8,7 +8,7 @@ const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const { BroadcastLog } = require("../../pgModels/index");
 // Import socket.io instance for real-time messaging
 let io;
-console.log("process.env.WHATSAPP_PHONE_ID" , process.env.WHATSAPP_PHONE_ID);
+
 const { getIO }  = require('../sockets/socketIntance');
 io = getIO(); // Returns null if not initialized (e.g., in worker processes)
 
