@@ -30,7 +30,7 @@ const BroadcastLog = require('./brodcaste/BroadcastLog');
 const Lead = require('./lead');
 const LeadStage = require('./LeadStages/LeadStage');
 const LeadStatus = require('./LeadStages/LeadStatus');
-const LeadReason = require('./LeadStages/leadReason');
+const LeadReason = require('./LeadStages/LeadReason');
 
 // =========================
 // Model Initialization
