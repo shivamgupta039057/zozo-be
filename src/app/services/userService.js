@@ -144,11 +144,11 @@ exports.getUserList = async (query) => {
           as: 'role',
           attributes: ['id', 'roleName'],
         },
-        // {
-        //   model: PermissionTemplateModel,
-        //   as: 'template',
-        //   attributes: ['id', 'templateName'],
-        // },
+        {
+          model: PermissionTemplateModel,
+          as: 'template',
+          attributes: ['id', 'name'],
+        },
         {
           model: UserModel, // Manager of this user
           as: 'manager',   // must match self-association alias in model
