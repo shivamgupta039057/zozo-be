@@ -1,6 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/postgres.config");
-const LeadStatus = require('./LeadStages/leadStatus'); // Import LeadStatus model
+const {LeadStatus} = require('../pgModels'); // Import LeadStatus model
 const WorkFlowQueue = require('./workflowQueueModel');
 
 // models/WorkflowRules.js

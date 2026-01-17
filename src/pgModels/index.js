@@ -30,7 +30,7 @@ const BroadcastLog = require('./brodcaste/BroadcastLog');
 const Lead = require('./lead');
 const LeadStage = require('./LeadStages/LeadStage');
 const LeadStatus = require('./LeadStages/LeadStatus');
-const LeadReason = require('./LeadStages/LeadReason');
+const LeadReason = require('./LeadStages/leadReason');
 
 // =========================
 // Model Initialization
@@ -66,11 +66,25 @@ if (PermissionTemplateModel.associate) {
 TemplatePermissionModel.belongsTo(PermissionTemplateModel, { foreignKey: 'PermissionTemplateId' });
 TemplatePermissionModel.belongsTo(MainMenuModel, { foreignKey: 'MenuId' });
 
+// LeadStage <-> LeadStatus
+LeadStage.hasMany(LeadStatus, { foreignKey: 'stage_id', as: 'statuses' });
+LeadStatus.belongsTo(LeadStage, { foreignKey: 'stage_id', as: 'stage' });
 
-// Lead <-> LeadStage, LeadStatus, LeadReason, User
+// LeadStatus <-> LeadReason
+LeadStatus.hasMany(LeadReason, { foreignKey: 'status_id', as: 'reasons' });
+LeadReason.belongsTo(LeadStatus, { foreignKey: 'status_id', as: 'status' });
+
+// Lead <-> LeadStage, LeadStatus, LeadReason
 Lead.belongsTo(LeadStage, { foreignKey: 'stage_id', as: 'stage' });
 Lead.belongsTo(LeadStatus, { foreignKey: 'status_id', as: 'status' });
 Lead.belongsTo(LeadReason, { foreignKey: 'reason_id', as: 'reason' });
+LeadStage.hasMany(Lead, { foreignKey: 'stage_id', as: 'leads' });
+LeadStatus.hasMany(Lead, { foreignKey: 'status_id', as: 'leads' });
+LeadReason.hasMany(Lead, { foreignKey: 'reason_id', as: 'leads' });
+
+
+
+// Lead <-> User (assigned, creator)
 Lead.belongsTo(UserModel, { foreignKey: 'assignedTo', as: 'assignedUser' });
 Lead.belongsTo(UserModel, { foreignKey: 'created_by', as: 'creator' });
 UserModel.hasMany(Lead, { foreignKey: 'assignedTo', as: 'assignedLeads' });

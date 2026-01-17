@@ -62,12 +62,12 @@ exports.getPermssionTemplates = async () => {
 exports.getTemplatesName = async () => {
   try {
     const templates = await PermissionTemplateModel.findAll({
-      attributes: ['templateName', 'id']
+      attributes: ['name', 'id']
     });
 
     const templateNames = templates.map(t => ({
       id: t.id,
-      templateName: t.templateName
+      templateName: t.name
     }));
 
     return {

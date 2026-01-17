@@ -1,9 +1,9 @@
 const { statusCode, resMessage } = require("../../config/default.json");
 // const Lead = require("../../pgModels/lead");
-const leadstage = require("../../pgModels/LeadStages/LeadStage");
+// Import index to initialize associations
+const {LeadReason,LeadStatus,LeadStage}=require("../../pgModels/index");
 const { Op } = require("sequelize");
-const Leadstatus = require("../../pgModels/LeadStages/leadStatus");
-const Leadreason = require("../../pgModels/LeadStages/leadReason");
+
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -18,7 +18,7 @@ exports.createLeadStage = async (body) => {
     const { name, ...rest } = body;
   try {
     // Check for existing entry by name or order
-    const existingField = await leadstage.findOne({
+    const existingField = await LeadStage.findOne({
       where: {
         [Op.or]: [
           { name: name },
@@ -35,7 +35,7 @@ exports.createLeadStage = async (body) => {
       };
     }
 
-    const leadfiled = await leadstage.create(body);
+    const leadfiled = await LeadStage.create(body);
 
     return {
       statusCode: statusCode.OK,
@@ -55,7 +55,7 @@ exports.createLeadStage = async (body) => {
 exports.getAllLeadStages = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const getfield = await leadstage.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadStage.findAll({ order: [["order", "ASC"]] });
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -75,7 +75,7 @@ exports.getAllLeadByIdStages = async (query , params) => {
   const { page = 1, limit = 10} = query;
   const { id } = params;
   try {
-    const getfield = await leadstage.findByPk(id);
+    const getfield = await LeadStage.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -94,7 +94,7 @@ exports.getAllLeadByIdStages = async (query , params) => {
 exports.updateLeadStage = async (params, body) => {
   const { id } = params;
   try {
-    const [updatedCount] = await leadstage.update(
+    const [updatedCount] = await LeadStage.update(
       { ...body },
       {
         where: { id: id },
@@ -110,7 +110,7 @@ exports.updateLeadStage = async (params, body) => {
         data: null,
       };
     }
-    const updatedStage = await leadstage.findByPk(id);
+    const updatedStage = await LeadStage.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -130,7 +130,7 @@ exports.updateLeadStage = async (params, body) => {
 exports.deleteLeadStage = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await leadstage.destroy(
+    const updatefield = await LeadStage.destroy(
       {
         where: { id: id },
       }
@@ -157,7 +157,7 @@ exports.createLeadStatus = async (body) => {
   console.log("createLeadStatuscreateLeadStatus" , body); 
   try {
   const { stage_id, name, color , is_default } = body;
-  const existingStatus = await Leadstatus.findOne({
+  const existingStatus = await LeadStatus.findOne({
     where: {
       stage_id,
       name: {
@@ -172,7 +172,7 @@ exports.createLeadStatus = async (body) => {
       message: `Status "${name}" already exists in this stage`,
     };
   }
-  const maxOrderStatus = await Leadstatus.findOne({
+  const maxOrderStatus = await LeadStatus.findOne({
     where: { stage_id },
     order: [["order", "DESC"]],
     attributes: ["order"],
@@ -180,14 +180,14 @@ exports.createLeadStatus = async (body) => {
   const nextOrder = maxOrderStatus ? maxOrderStatus.order + 1 : 1;
   console.log("maxOrderStatusmaxOrderStatus" , nextOrder);
   // const leadStatusCreate = await Leadstatus.create(body);
-  const leadStatusCreate = await Leadstatus.create({
+  const leadStatusCreate = await LeadStatus.create({
     stage_id,
     name,
     color,
     is_default: is_default || false,
     order: nextOrder,
   });
-  const leadstatus = await Leadstatus.findByPk(leadStatusCreate.id, {
+  const leadstatus = await LeadStatus.findByPk(leadStatusCreate.id, {
     attributes: ["id", "name", "order", "color", "is_active", "stage_id"],
   });
   const leadstatusdata = leadstatus ? {
@@ -215,7 +215,7 @@ exports.createLeadStatus = async (body) => {
 exports.getAllLeadStatuses = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const getfield = await Leadstatus.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadStatus.findAll({ order: [["order", "ASC"]] });
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -235,7 +235,7 @@ exports.getAllLeadStatuses = async (query) => {
 exports.updateLeadStatus = async (params, body) => {
   const { id } = params;
   try {
-    const [updatedCount] = await Leadstatus.update(
+    const [updatedCount] = await LeadStatus.update(
       { ...body },
       {
         where: { id: id },
@@ -251,7 +251,7 @@ exports.updateLeadStatus = async (params, body) => {
         data: null,
       };
     }
-    const updatedStage = await Leadstatus.findByPk(id);
+    const updatedStage = await LeadStatus.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -273,7 +273,7 @@ exports.updateLeadStatus = async (params, body) => {
 exports.deleteLeadStatus = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await Leadstatus.destroy(
+    const updatefield = await LeadStatus.destroy(
       {
         where: { id: id },
       }
@@ -304,7 +304,7 @@ exports.createReasonStatus = async (body) => {
     const { status_id, reason } = body;
 
     // Check for duplicate reason in the same status
-    const existingReason = await Leadreason.findOne({
+    const existingReason = await LeadReason.findOne({
       where: {
         status_id,
         reason: {
@@ -322,7 +322,7 @@ exports.createReasonStatus = async (body) => {
     }
 
     // Get max order for the given status_id
-    const maxOrderReason = await Leadreason.findOne({
+    const maxOrderReason = await LeadReason.findOne({
       where: { status_id },
       order: [["order", "DESC"]],
       attributes: ["order"],
@@ -330,14 +330,14 @@ exports.createReasonStatus = async (body) => {
     const nextOrder = maxOrderReason ? maxOrderReason.order + 1 : 1;
 
     // Create the lead reason
-    const leadReasonCreate = await Leadreason.create({
+    const leadReasonCreate = await LeadReason.create({
       status_id,
       reason,
       order: nextOrder,
     });
 
     // Fetch the created lead reason
-    const leadReason = await Leadreason.findByPk(leadReasonCreate.id, {
+    const leadReason = await LeadReason.findByPk(leadReasonCreate.id, {
       attributes: ["id", "status_id", "reason", "order", "is_active"],
     });
 
@@ -367,7 +367,7 @@ exports.createReasonStatus = async (body) => {
 exports.getAllReasonStatuses = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const getfield = await Leadreason.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadReason.findAll({ order: [["order", "ASC"]] });
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -387,7 +387,7 @@ exports.getAllReasonStatuses = async (query) => {
 exports.updateReasonStatus = async (params, body) => {
   const { id } = params;
   try {
-    const [updatedCount] = await Leadreason.update(
+    const [updatedCount] = await LeadReason.update(
       { ...body },
       {
         where: { id: id },
@@ -403,7 +403,7 @@ exports.updateReasonStatus = async (params, body) => {
         data: null,
       };
     }
-    const updatedStage = await Leadreason.findByPk(id);
+    const updatedStage = await LeadReason.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -423,7 +423,7 @@ exports.updateReasonStatus = async (params, body) => {
 exports.deleteReasonStatus = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await Leadreason.destroy(
+    const updatefield = await LeadReason.destroy(
       {
         where: { id: id },
       }
@@ -447,14 +447,14 @@ exports.deleteReasonStatus = async (params) => {
 exports.getfullLeads = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const datafullleads = await leadstage.findAll({
+    const datafullleads = await LeadStage.findAll({
       include: [
         {
-          model: Leadstatus,
+          model: LeadStatus,
           as: 'statuses',
           include: [
             {
-              model: Leadreason,
+              model: LeadReason,
               as: 'reasons',
             }
           ]
@@ -462,10 +462,10 @@ exports.getfullLeads = async (query) => {
       ],
       order: [
         ["order", "ASC"],
-        [{ model: Leadstatus, as: "statuses" }, "order", "ASC"],
+        [{ model: LeadStatus, as: "statuses" }, "order", "ASC"],
         [
-          { model: Leadstatus, as: "statuses" },
-          { model: Leadreason, as: "reasons" },
+          { model: LeadStatus, as: "statuses" },
+          { model: LeadReason, as: "reasons" },
           "order",
           "ASC",
         ],

@@ -1,6 +1,7 @@
 const LeadStage = require("./LeadStage");
 const LeadStatus = require("./LeadStatus");
 const LeadReason = require("./leadReason");
+const Lead = require("../lead");
 
 LeadStage.hasMany(LeadStatus, {
   foreignKey: "stage_id",
