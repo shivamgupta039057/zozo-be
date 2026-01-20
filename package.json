@@ -6,7 +6,7 @@
   "scripts": {
     "start": "nodemon index.js",
     "socket": "nodemon socket.js",
-    "worker":"nodemon src/workers/broadcast.worker.js",
+    "worker": "nodemon src/workers/broadcast.worker.js",
     "migration:run": "node run_migration.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seeder": "node run_seeder.js"
@@ -29,6 +29,7 @@
     "libphonenumber-js": "^1.12.33",
     "mongoose": "^8.18.2",
     "multer": "^2.0.2",
+    "nodemailer": "^7.0.12",
     "pg": "^8.16.3",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.7",

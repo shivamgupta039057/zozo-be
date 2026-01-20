@@ -20,6 +20,7 @@ async function insertDefaultLeadFields(LeadField) {
                     is_required: true,
                     order: 1,
                     is_primary_field: true,
+                    icon : "User" ,
                 },
                 {
                     name: "whatsapp_number",
@@ -28,6 +29,16 @@ async function insertDefaultLeadFields(LeadField) {
                     is_required: true,
                     order: 2,
                     is_primary_field: true,
+                    icon : "Phone" ,
+                },
+                {
+                    name: "email",
+                    label: "Email",
+                    type: "email",
+                is_required: true,
+                    order: 3,
+                    is_primary_field: true,
+                    icon : "Mail" ,
                 },
             ]);
 

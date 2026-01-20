@@ -43,9 +43,11 @@ leadFieldValidation = Joi.object({
 
 exports.leadStageValidation = Joi.object({
     name: Joi.string().trim().required(),
-    order: Joi.number().integer().required(),
+    order: Joi.number().integer().optional(),
     color: Joi.string().allow(null, "").optional(),
-    is_active: Joi.boolean().default(true).optional(),    
+    is_active: Joi.boolean().default(true).optional(),
+    stage_id: Joi.number().allow(null).optional(),
+    is_default:Joi.boolean().optional(),
 });
 
 // Joi validation schema for LeadStatus model

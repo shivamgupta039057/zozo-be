@@ -13,21 +13,11 @@ const { Op } = require("sequelize");
  * @throws Will throw an error if there is a database error.
  */
 exports.createLeadStage = async (body) => {
-  console.log("fdgdfkgjldfdkldskl" , body);
-  
-    const { name, ...rest } = body;
+  const { name, order: bodyOrder } = body;
   try {
-    // Check for existing entry by name or order
-    const existingField = await LeadStage.findOne({
-      where: {
-        [Op.or]: [
-          { name: name },
-          { order: rest.order }
-        ]
-      },
-    });
-
-    if (existingField) {
+    // Check if a LeadStage already exists with the same name
+    const existingByName = await LeadStage.findOne({ where: { name } });
+    if (existingByName) {
       return {
         statusCode: statusCode.BAD_REQUEST,
         success: false,
@@ -35,19 +25,38 @@ exports.createLeadStage = async (body) => {
       };
     }
 
-    const leadfiled = await LeadStage.create(body);
+    // If an order is provided, check for order duplication
+    if (typeof bodyOrder !== 'undefined' && bodyOrder !== null) {
+      const existingByOrder = await LeadStage.findOne({ where: { order: bodyOrder } });
+      if (existingByOrder) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: "Order value already exists. Please use a different order.",
+        };
+      }
+    }
+
+    // If no order is provided, set the next order automatically
+    let leadData = { ...body };
+    if (typeof bodyOrder === 'undefined' || bodyOrder === null) {
+      const maxOrder = await LeadStage.max('order');
+      leadData.order = typeof maxOrder === 'number' ? maxOrder + 1 : 1;
+    }
+
+    const leadfield = await LeadStage.create(leadData);
 
     return {
       statusCode: statusCode.OK,
       success: true,
       message: resMessage.Add_LEAD_FIELD_Data,
-      data: leadfiled,
+      data: leadfield,
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: error.message,
+      message: error && error.message ? error.message : "An error occurred",
     };
   }
 };
@@ -154,62 +163,86 @@ exports.deleteLeadStage = async (params) => {
 // lead status routes
 
 exports.createLeadStatus = async (body) => {
-  console.log("createLeadStatuscreateLeadStatus" , body); 
+  console.log("createLeadStatuscreateLeadStatus", body);
   try {
-  const { stage_id, name, color , is_default } = body;
-  const existingStatus = await LeadStatus.findOne({
-    where: {
-      stage_id,
-      name: {
-        [Op.iLike]: name
+    const { stage_id, name, color, is_default } = body;
+
+    // Check if the status already exists within the given stage (case-insensitive)
+    const existingStatus = await LeadStatus.findOne({
+      where: {
+        stage_id,
+        name: {
+          [Op.iLike]: name,
+        },
+      },
+    });
+    if (existingStatus) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: `Status "${name}" already exists in this stage`,
+      };
+    }
+
+    // If is_default is true, check if there is already a default status for this stage
+    if (is_default === true || is_default === "true") {
+      const existingDefault = await LeadStatus.findOne({
+        where: {
+          is_default: true,
+        },
+      });
+      if (existingDefault) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: `Default status already exists in this stage. Only one default can be set.`,
+        };
       }
-    },
-  });
-  if (existingStatus) {
+    }
+
+    // Find the current max order for the stage
+    const maxOrderStatus = await LeadStatus.findOne({
+      where: { stage_id },
+      order: [["order", "DESC"]],
+      attributes: ["order"],
+    });
+    const nextOrder = maxOrderStatus ? maxOrderStatus.order + 1 : 1;
+
+    const leadStatusCreate = await LeadStatus.create({
+      stage_id,
+      name,
+      color,
+      is_default: is_default || false,
+      order: nextOrder,
+    });
+
+    const leadstatus = await LeadStatus.findByPk(leadStatusCreate.id, {
+      attributes: ["id", "name", "order", "color", "is_active", "stage_id", "is_default"],
+    });
+    const leadstatusdata = leadstatus
+      ? {
+          id: leadstatus.id,
+          name: leadstatus.name,
+          order: leadstatus.order,
+          color: leadstatus.color,
+          is_active: leadstatus.is_active,
+          is_default: leadstatus.is_default,
+        }
+      : null;
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: resMessage.Add_LEAD_FIELD_Data,
+      data: leadstatusdata || null,
+    };
+  } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: `Status "${name}" already exists in this stage`,
+      message: error.message,
     };
   }
-  const maxOrderStatus = await LeadStatus.findOne({
-    where: { stage_id },
-    order: [["order", "DESC"]],
-    attributes: ["order"],
-  });
-  const nextOrder = maxOrderStatus ? maxOrderStatus.order + 1 : 1;
-  console.log("maxOrderStatusmaxOrderStatus" , nextOrder);
-  // const leadStatusCreate = await Leadstatus.create(body);
-  const leadStatusCreate = await LeadStatus.create({
-    stage_id,
-    name,
-    color,
-    is_default: is_default || false,
-    order: nextOrder,
-  });
-  const leadstatus = await LeadStatus.findByPk(leadStatusCreate.id, {
-    attributes: ["id", "name", "order", "color", "is_active", "stage_id"],
-  });
-  const leadstatusdata = leadstatus ? {
-    id: leadstatus.id,
-    name: leadstatus.name,
-    order: leadstatus.order,
-    color: leadstatus.color,
-    is_active: leadstatus.is_active,
-  } : null;
-  return {
-    statusCode: statusCode.OK,
-    success: true,
-    message: resMessage.Add_LEAD_FIELD_Data,
-    data: leadstatusdata || null ,
-    };
-} catch (error) {
-  return {
-    statusCode: statusCode.BAD_REQUEST,
-    success: false,
-    message: error.message,
-  };
-}
 };
 
 exports.getAllLeadStatuses = async (query) => {

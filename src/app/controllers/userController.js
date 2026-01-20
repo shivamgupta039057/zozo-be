@@ -79,6 +79,19 @@ exports.login = async ({body}) => {
 };
 
 
+exports.sendotpEmail = async ({body}) => {
+  try {
+    return await services.sendotpEmail(body);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+
 exports.getProfile = async ({query, user}) => {
   try {
     return await services.getProfileList(query , user);
