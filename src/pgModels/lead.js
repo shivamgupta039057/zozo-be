@@ -1,8 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/postgres.config");
 
-
-
 const Lead = sequelize.define(
   "Lead",
   {

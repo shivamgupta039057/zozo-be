@@ -1,18 +1,33 @@
 const { statusCode, resMessage } = require("../../config/default.json");
 const bcrypt = require("bcrypt");
 // const Role = require("../../pgModels/roleModel");
+const crypto = require("crypto");
 
-const {UserModel,RoleModel,PermissionTemplateModel,TemplatePermissionModel,MainMenuModel} = require('../../pgModels/index');
+const {
+  UserModel,
+  RoleModel,
+  PermissionTemplateModel,
+  TemplatePermissionModel,
+  MainMenuModel,
+} = require("../../pgModels/index");
 const jwt = require("jsonwebtoken");
-
+const { emailSend } = require("../helper/helper");
 
 exports.addUser = async (body) => {
   try {
+    const {
+      name,
+      email,
+      password,
+      phone,
+      roleId,
+      permissionTemplateId,
+      initials,
+      reportingTo,
+      reporteeIds = [],
+    } = body;
 
-    const { name, email, password, phone, roleId, permissionTemplateId, initials, reportingTo, reporteeIds = [] } = body;
-
-    // console.log(body,"sssssssss")
-
+    // Check for existing user
     const existingUser = await UserModel.findOne({ where: { email } });
     if (existingUser) {
       return {
@@ -21,30 +36,31 @@ exports.addUser = async (body) => {
         message: "Email already exists",
       };
     }
+
+    // Check if role is valid
     const role = await RoleModel.findByPk(roleId);
     if (!role) {
       return {
         statusCode: statusCode.BAD_REQUEST,
         success: false,
-        message: "Invalid roleId"
+        message: "Invalid roleId",
       };
-
     }
 
-
+    // Check if permission template is valid
     const permissionTemplate = await PermissionTemplateModel.findByPk(permissionTemplateId);
     if (!permissionTemplate) {
-      
       return {
         statusCode: statusCode.BAD_REQUEST,
         success: false,
-        message: "Invalid permissionTemplateId"
+        message: "Invalid permissionTemplateId",
       };
     }
 
     let manager = null;
     if (reportingTo) {
-      manager = await UserModel.findByPk(reportingTo, { include: Role });
+      // Manager must exist and have the Role property (eager loading fix, fallback to RoleModel if necessary)
+      manager = await UserModel.findByPk(reportingTo, { include: { model: RoleModel, as: "role" } });
       if (!manager) {
         return {
           statusCode: statusCode.BAD_REQUEST,
@@ -52,18 +68,16 @@ exports.addUser = async (body) => {
           message: "Invalid reportingTo (manager) id",
         };
       }
-
-      // Optional rule: Caller should report to Manager if reportingTo provided
-      if (role.roleName === "Caller" && manager.Role.roleName !== "Manager") {
+      // Use manager.role or manager.Role depending on ORM config
+      const managerRoleName = manager.role ? manager.role.roleName : (manager.Role ? manager.Role.roleName : undefined);
+      if (role.roleName === "Caller" && managerRoleName !== "Manager") {
         return {
           statusCode: statusCode.BAD_REQUEST,
           success: false,
           message: "Caller must report to a Manager if reportingTo is provided",
         };
       }
-
-      // Optional rule: Manager can report to another Manager if reportingTo provided
-      if (role.roleName === "Manager" && manager.Role.roleName !== "Manager") {
+      if (role.roleName === "Manager" && managerRoleName !== "Manager") {
         return {
           statusCode: statusCode.BAD_REQUEST,
           success: false,
@@ -72,10 +86,10 @@ exports.addUser = async (body) => {
       }
     }
 
-    // 5️⃣ Hash password
+    // Hash password
     const hashPassword = await bcrypt.hash(password, 10);
 
-    // 6️⃣ Create User
+    // Create new user
     const newUser = await UserModel.create({
       name,
       email,
@@ -87,13 +101,38 @@ exports.addUser = async (body) => {
       reportingTo: manager ? manager.id : null,
     });
 
-    // 7️⃣ Optional Reportees assignment (Manager only, if provided)
-    if (role.roleName === "Manager" && Array.isArray(reporteeIds) && reporteeIds.length > 0) {
+    // If Manager, assign reportees
+    if (
+      role.roleName === "Manager" &&
+      Array.isArray(reporteeIds) &&
+      reporteeIds.length > 0
+    ) {
       await UserModel.update(
         { reportingTo: newUser.id },
-        { where: { id: reporteeIds } }
+        { where: { id: reporteeIds } },
       );
     }
+
+    // Prepare email for user creation - send website link, email and password
+    // You can create your own template or use plain HTML/text below:
+
+    const websiteLink = "http://zozocrm.com";
+    const subject = "Your Account Has Been Created";
+    // Note: Sending plain password in email is a security risk, but requested!
+    const message = `
+      <p>Hello ${name},</p>
+      <p>Your account has been created. Please find your login details below:</p>
+      <ul>
+        <li><strong>Website:</strong> <a href="${websiteLink}" target="_blank">${websiteLink}</a></li>
+        <li><strong>Email:</strong> ${email}</li>
+        <li><strong>Password:</strong> ${password}</li>
+      </ul>
+      <p>Please login and change your password for security reasons.</p>
+      <p>Thank you!</p>
+    `;
+
+    await emailSend(email, subject, message);
+
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -101,27 +140,8 @@ exports.addUser = async (body) => {
       data: newUser,
     };
 
-    // const hashPassword = await bcrypt.hash(password, 10);
-
-    // const user = await UserModel.create({
-    //   name,
-    //   email,
-    //   initials,
-    //   password: hashPassword,
-    //   phone,
-    //   roleId,
-    //   permissionTemplateId
-    // });
-
-
-    // return {
-    //   statusCode: statusCode.OK,
-    //   success: true,
-    //   message: "Add",
-    //   data: user,
-    // };
   } catch (error) {
-    console.log(error, "eeeeeeeee")
+    console.log(error, "eeeeeeeee");
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
@@ -133,38 +153,35 @@ exports.addUser = async (body) => {
 exports.getUserList = async (query) => {
   try {
     // Fetch all users with associated role and permission template
-    const { roleId } = query
+    const { roleId } = query;
     const whereClause = roleId ? { roleId } : {};
     const users = await UserModel.findAll({
-      attributes: ['id', 'name', 'email', 'phone', 'createdAt', 'updatedAt'],
+      attributes: ["id", "name", "email", "phone", "createdAt", "updatedAt"],
       where: whereClause,
       include: [
         {
           model: RoleModel,
-          as: 'role',
-          attributes: ['id', 'roleName'],
+          as: "role",
+          attributes: ["id", "roleName"],
         },
         {
           model: PermissionTemplateModel,
-          as: 'template',
-          attributes: ['id', 'name'],
+          as: "template",
+          attributes: ["id", "name"],
         },
         {
           model: UserModel, // Manager of this user
-          as: 'manager',   // must match self-association alias in model
-          attributes: ['id', 'name', 'email'],
+          as: "manager", // must match self-association alias in model
+          attributes: ["id", "name", "email"],
         },
         {
           model: UserModel, // Users reporting to this user (reportees)
-          as: 'reportees', // must match self-association alias in model
-          attributes: ['id', 'name', 'email'],
+          as: "reportees", // must match self-association alias in model
+          attributes: ["id", "name", "email"],
         },
       ],
-      order: [['createdAt', 'DESC']],
+      order: [["createdAt", "DESC"]],
     });
-
-
-
 
     return {
       statusCode: statusCode.OK,
@@ -172,7 +189,6 @@ exports.getUserList = async (query) => {
       message: "User list fetched successfully",
       data: users,
     };
-
   } catch (error) {
     console.log(error, "getUserList error");
     return {
@@ -183,11 +199,18 @@ exports.getUserList = async (query) => {
   }
 };
 
-
 exports.editUser = async (params, body) => {
   try {
-    const { id } = params
-    const { name, email, password, phone, roleId, permissionTemplateId, initials } = body;
+    const { id } = params;
+    const {
+      name,
+      email,
+      password,
+      phone,
+      roleId,
+      permissionTemplateId,
+      initials,
+    } = body;
 
     // ✅ Find the user first
     const user = await UserModel.findByPk(id);
@@ -225,7 +248,8 @@ exports.editUser = async (params, body) => {
 
     // ✅ Validate permissionTemplateId if provided
     if (permissionTemplateId) {
-      const permissionTemplate = await PermissionTemplateModel.findByPk(permissionTemplateId);
+      const permissionTemplate =
+        await PermissionTemplateModel.findByPk(permissionTemplateId);
       if (!permissionTemplate) {
         return {
           statusCode: statusCode.BAD_REQUEST,
@@ -241,7 +265,8 @@ exports.editUser = async (params, body) => {
     user.phone = phone || user.phone;
     user.roleId = roleId || user.roleId;
     user.initials = initials || user.initials;
-    user.permissionTemplateId = permissionTemplateId || user.permissionTemplateId;
+    user.permissionTemplateId =
+      permissionTemplateId || user.permissionTemplateId;
 
     // ✅ If new password provided, hash it
     if (password) {
@@ -257,7 +282,6 @@ exports.editUser = async (params, body) => {
       message: "User updated successfully",
       data: user,
     };
-
   } catch (error) {
     console.log(error, "editUser error");
     return {
@@ -267,7 +291,6 @@ exports.editUser = async (params, body) => {
     };
   }
 };
-
 
 exports.loginUser = async (body) => {
   try {
@@ -286,12 +309,12 @@ exports.loginUser = async (body) => {
     const user = await UserModel.findOne({
       where: { email },
 
-        include: [
-    { model: RoleModel, as: 'role', attributes: ["id", "roleName"] },
-    // { model: PermissionTemplateModel, as: 'template', attributes: ["id", "templateName"] },
-  ],
+      include: [
+        { model: RoleModel, as: "role", attributes: ["id", "roleName"] },
+        // { model: PermissionTemplateModel, as: 'template', attributes: ["id", "templateName"] },
+      ],
     });
-    console.log(user.role.roleName, "userrrrrr")
+    console.log(user.role.roleName, "userrrrrr");
 
     if (!user) {
       return {
@@ -315,7 +338,7 @@ exports.loginUser = async (body) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, roleId: user.roleId },
       process.env.SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN } // 1 day expiry
+      { expiresIn: process.env.JWT_EXPIRES_IN }, // 1 day expiry
     );
 
     // ✅ Return success response
@@ -345,38 +368,123 @@ exports.loginUser = async (body) => {
   }
 };
 
+exports.sendotpEmail = async (body) => {
+  try {
+    const { email } = body;
+
+    // ✅ Check if email & password provided
+    if (!email) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "Email is required",
+      };
+    }
+
+    // ✅ Find user by email
+    const user = await UserModel.findOne({
+      where: { email },
+
+      include: [
+        { model: RoleModel, as: "role", attributes: ["id", "roleName"] },
+        // { model: PermissionTemplateModel, as: 'template', attributes: ["id", "templateName"] },
+      ],
+    });
+    console.log(user.role.roleName, "userrrrrr");
+
+    if (!user) {
+      return {
+        statusCode: statusCode.UNAUTHORIZED,
+        success: false,
+        message: "Invalid email",
+      };
+    }
+
+    // ✅ Compare password
+    const otp =
+      process.env.OTPENV === "LOCAL"
+        ? "123456"
+        : crypto.randomInt(100000, 999999).toString();
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return {
+        statusCode: statusCode.UNAUTHORIZED,
+        success: false,
+        message: "Invalid email or password",
+      };
+    }
+
+    // ✅ Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, roleId: user.roleId },
+      process.env.SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN }, // 1 day expiry
+    );
+
+    // ✅ Return success response
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: "Login successful",
+      data: {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role ? user.role.roleName : null,
+          // permissionTemplate: user.template ? user.template.templateName : null,
+        },
+      },
+    };
+  } catch (error) {
+    console.log(error, "loginUser error");
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
 
 exports.getProfileList = async (query, user) => {
   try {
     // Fetch user profile and permissions in parallel
     const [userProfile, perms] = await Promise.all([
       UserModel.findOne({
-        attributes: ['id', 'name', 'email', 'initials', 'phone', 'createdAt', 'updatedAt'],
+        attributes: [
+          "id",
+          "name",
+          "email",
+          "initials",
+          "phone",
+          "createdAt",
+          "updatedAt",
+        ],
         where: { id: user.id },
         include: [
           {
             model: RoleModel,
-            as: 'role',
-            attributes: ['id', 'roleName'],
+            as: "role",
+            attributes: ["id", "roleName"],
           },
           {
             model: UserModel, // Manager of this user
-            as: 'manager',
-            attributes: ['id', 'name', 'email'],
+            as: "manager",
+            attributes: ["id", "name", "email"],
           },
           {
             model: UserModel, // Users reporting to this user (reportees)
-            as: 'reportees',
-            attributes: ['id', 'name', 'email'],
+            as: "reportees",
+            attributes: ["id", "name", "email"],
           },
         ],
       }),
       TemplatePermissionModel.findAll({
         where: { PermissionTemplateId: user.permissionTemplateId },
-        include: [
-          { model: MainMenuModel }
-        ]
-      })
+        include: [{ model: MainMenuModel }],
+      }),
     ]);
 
     if (!userProfile) {
@@ -388,7 +496,7 @@ exports.getProfileList = async (query, user) => {
     }
 
     // Build permissions array with menu details
-    const permissions = perms.map(p => {
+    const permissions = perms.map((p) => {
       const menu = p.Menu || {};
       return {
         menuId: p.MenuId,
@@ -399,7 +507,8 @@ exports.getProfileList = async (query, user) => {
         create: p.canCreate,
         view: p.canView,
         edit: p.canEdit,
-        delete: p.canDelete
+        delete: p.canDelete,
+        icon: menu.icon || null,
       };
     });
 
@@ -409,7 +518,7 @@ exports.getProfileList = async (query, user) => {
       role: userProfile.role ? userProfile.role.roleName : null,
       manager: userProfile.manager || null,
       reportees: userProfile.reportees || [],
-      permissions
+      permissions,
     };
 
     return {

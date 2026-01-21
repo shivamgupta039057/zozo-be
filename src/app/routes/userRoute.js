@@ -9,6 +9,7 @@ const {addUserVal } = require("../../validators/app/userVal");
 
 
 router.post('/addUser', validate(addUserVal), responseHandler(controllers.addUser)); // public
+router.post('/send-otp-email' , responseHandler(controllers.sendotpEmail) )
 router.post('/login', responseHandler(controllers.login)); // public
 
 router.get('/getUser', auth, responseHandler(controllers.getUserList));
