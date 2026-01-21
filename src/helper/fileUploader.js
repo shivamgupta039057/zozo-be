@@ -3,7 +3,7 @@ const path = require("path");
 
 exports.uploadFile = (req, res, next) => {
   try {
-    console.log(req.files, "sssssss");
+ 
     if (req.files) {
       for (let file of req.files) {
         // req.body[file.fieldname] ? req.body[file.fieldname].push(file.filename) : req.body[file.fieldname] = [file.filename]
@@ -23,12 +23,15 @@ exports.uploadFile = (req, res, next) => {
           : (req.body.extension = [newone]);
       }
     } else if (req.file) {
+   
       // req.body[req.file.fieldname] = req.file.filename;
       // req.body[req.file.fieldname] = `${req.body.folderName}/${req.file.filename}`;
       req.body[
         req.file.fieldname
       ] = `${req.body.folderName}/${req.file.filename}`;
-
+      req.body.originalname = req.file.originalname;
+      req.body.path= req.file.path;
+      console.log(req.body, "mmmmmmmmm");
       const type = req.file.mimetype.split("/")[0];
       req.body.extension = type;
     }

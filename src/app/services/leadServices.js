@@ -1,5 +1,5 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const { Lead, LeadStage, LeadStatus, UserModel } = require("../../pgModels");
+const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField ,Sequelize} = require("../../pgModels");
 const { Op } = require("sequelize");
 
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
@@ -7,7 +7,7 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { log } = require("console");
+const { parseExcel, buildLeadPayload } = require("../../utils/leadBulkInsert");
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -688,8 +688,7 @@ exports.bulkAssignLeads = async (body) => {
   // Console output for assignment
   Object.entries(assignmentMap).forEach(([userId, leads]) => {
     console.log(
-      `User ${userId} assigned leads: [${leads.join(", ")}] (Total: ${
-        leads.length
+      `User ${userId} assigned leads: [${leads.join(", ")}] (Total: ${leads.length
       })`
     );
   });
@@ -698,5 +697,151 @@ exports.bulkAssignLeads = async (body) => {
     success: true,
     message: "Leads assigned successfully",
     assignment: assignmentMap,
+  };
+};
+
+
+
+// Bulk Lead Upload Step 1: Upload File
+exports.uploadFile = async (body, user) => {
+  try {
+ 
+    const upload = await BulkLeadUpload.create({
+      file_name: body.originalname,
+      file_path: body.path,
+      uploaded_by: user.id
+    });
+    console.log("Upload record created:", upload.id);
+    return {
+      message: "File uploaded successfully",
+      statusCode: statusCode.OK,
+      success: true,
+      uploadId: upload.id
+    };
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message
+    };
+  }
+};
+
+// Step 2: Get Sheets and Headers
+exports.getSheets = async (uploadId) => {
+  try {
+    const upload = await BulkLeadUpload.findByPk(uploadId);
+    const wb = XLSX.readFile(upload.file_path);
+    const sheet = wb.SheetNames[0];
+    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1 })[0];
+    console.log("Extracted headers:", headers);
+    console.log("Sheet names:", wb.SheetNames);
+    return {
+      message: "Sheets fetched successfully",
+      statusCode: statusCode.OK,
+      success: true,
+      sheets: wb.SheetNames,
+      headers
+    };
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message
+    };
+  }
+};
+
+// Step 3: Validate Mapping
+exports.validateMapping = async (mapping) => {
+  try {
+    if (!mapping.whatsapp_number)
+      return { statusCode: statusCode.BAD_REQUEST, success: false, message: "WhatsApp is required" };
+    const fields = await LeadField.findAll({ where: { is_active: true } });
+    console.log("Valid lead fields:", fields.map(f => f.name));
+    const validFields = fields.map(f => f.name);
+    Object.keys(mapping.data || {}).forEach(f => {
+      if (!validFields.includes(f))
+        throw new Error(`Invalid field: ${f}`);
+    });
+    return { statusCode: statusCode.OK, success: true };
+  } catch (error) {
+    return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+  }
+};
+
+// Step 4: Check Duplicates
+exports.checkDuplicates = async ({ uploadId, sheet, mapping }) => {
+  try {
+    const upload = await BulkLeadUpload.findByPk(uploadId);
+    const rows = parseExcel(upload.file_path, sheet);
+    const numbers = rows.map(r => r[mapping.whatsapp_number]);
+    const duplicates = await Lead.findAll({
+      where: { whatsapp_number: { [Op.in]: numbers } },
+      attributes: ["whatsapp_number"]
+    });
+    return { statusCode: statusCode.OK, success: true, duplicates };
+  } catch (error) {
+    return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+  }
+};
+
+// Step 5: Commit Import
+exports.commitImport = async ({ uploadId, sheet, mapping, user }) => {
+  try {
+    const upload = await BulkLeadUpload.findByPk(uploadId);
+    const rows = parseExcel(upload.file_path, sheet);
+    const leads = rows.map(row =>
+      buildLeadPayload(row, mapping, user.id, uploadId)
+    );
+    await Lead.bulkCreate(leads);
+    await upload.update({ status: "COMPLETED" });
+    return { statusCode: statusCode.OK, success: true, inserted: leads.length };
+  } catch (error) {
+    return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+  }
+};
+
+
+exports.getUploadedFiles = async ({ limit, offset }) => {
+  const { rows, count } = await BulkLeadUpload.findAndCountAll({
+    limit,
+    offset,
+    order: [["createdAt", "DESC"]],
+    include: [
+      {
+        model: UserModel,
+        as: "uploader",
+        attributes: ["id", "name", "email"]
+      }
+    ]
+  });
+
+  const uploadsWithCount = await Promise.all(
+    rows.map(async upload => {
+      const leadsCount = await Lead.count({
+        where: {
+          upload_id: upload.id   // ✅ FIX
+        }
+      });
+
+      return {
+        id: upload.id,
+        file_name: upload.file_name,
+        leads: leadsCount,
+        uploaded_by: upload.uploader,
+        uploaded_on: upload.createdAt,
+        status: upload.status
+      };
+    })
+  );
+
+  return {
+    data: uploadsWithCount,
+    pagination: {
+      total: count,
+      limit,
+      page: Math.floor(offset / limit) + 1
+    }
   };
 };

@@ -20,5 +20,13 @@ router.get('/stage-status-structure', auth, responseHandler(controller.getStageS
 
 router.post('/bulk-assign', auth, responseHandler(controller.bulkAssignLeads));
 
+// File upload routes
+router.post("/upload",auth, upload.single("file"), uploadFile,responseHandler(controller.uploadFile));
+router.get("/uploads", auth,responseHandler(controller.getUploadedFiles));
+
+router.get("/sheets/:id", auth,responseHandler(controller.getSheets));
+router.post("/validate",auth, responseHandler(controller.validateMapping));
+router.post("/duplicates", auth,responseHandler(controller.checkDuplicates));
+router.post("/commit", auth,responseHandler(controller.commitImport));
 module.exports = router;
 

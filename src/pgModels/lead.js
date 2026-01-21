@@ -75,6 +75,14 @@ const Lead = sequelize.define(
         key: "id",
       },
     },
+    upload_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "bulk_lead_uploads",
+        key: "id"
+      }
+    },
   },
 {
   tableName: "leads",

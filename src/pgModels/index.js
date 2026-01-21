@@ -1,4 +1,3 @@
-
 // =========================
 // Sequelize & Config
 // =========================
@@ -13,6 +12,7 @@ const insertDefaultLeadFields = require("../seed/leadFieldDefaults");
 const LeadFieldFactory = require('./LeadField');
 const FacebookConnectionFactory = require('./FacebookConnection');
 const FbFieldMappingFactory = require('./FbFieldMapping');
+const BulkLeadUploadFactory = require('./BulkLeadUpload');
 
 const RawFacebookLeadFactory = require('./RawFacebookLead');
 const RoleModelFactory = require('./roleModel');
@@ -49,7 +49,7 @@ const MainMenuModel = MainMenuModelFactory(sequelizeInstance, Sequelize.DataType
 const FacebookIntegration = require('./FacebookIntegration')(sequelizeInstance, Sequelize.DataTypes);
 const FbLeadDistributionRule = require('./FbLeadDistributionRule')(sequelizeInstance, Sequelize.DataTypes);
 const FbLeadDistributionState = require('./FbLeadDistributionState')(sequelizeInstance, Sequelize.DataTypes);
-
+const BulkLeadUpload = BulkLeadUploadFactory(sequelizeInstance, Sequelize.DataTypes);
 // =========================
 // Model Associations
 // =========================
@@ -65,6 +65,11 @@ if (PermissionTemplateModel.associate) {
 // TemplatePermission <-> PermissionTemplate, Menu
 TemplatePermissionModel.belongsTo(PermissionTemplateModel, { foreignKey: 'PermissionTemplateId' });
 TemplatePermissionModel.belongsTo(MainMenuModel, { foreignKey: 'MenuId' });
+
+
+// BulkLeadUpload <-> User (uploader)
+BulkLeadUpload.belongsTo(UserModel, { foreignKey: 'uploaded_by', as: 'uploader' });
+UserModel.hasMany(BulkLeadUpload, { foreignKey: 'uploaded_by', as: 'uploads' });
 
 // LeadStage <-> LeadStatus
 LeadStage.hasMany(LeadStatus, { foreignKey: 'stage_id', as: 'statuses' });
@@ -163,4 +168,5 @@ module.exports = {
     LeadStage,
     LeadStatus,
     LeadReason,
+    BulkLeadUpload
 };

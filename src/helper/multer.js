@@ -10,7 +10,7 @@ if (!fs.existsSync(uploadPath)) {
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        console.log(req.file, req.body.folderName , "bbbbbb")
+        console.log( req.body.folderName , "bbbbbb")
         if (!req.body.folderName) return cb(new Error("Multer: folderName field not found in request body"))
         const typePath = path.join(uploadPath, req.body.folderName)
         if (!fs.existsSync(typePath)) {
