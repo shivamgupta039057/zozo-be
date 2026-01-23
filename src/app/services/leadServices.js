@@ -716,13 +716,15 @@ exports.uploadFile = async (body, user) => {
       message: "File uploaded successfully",
       statusCode: statusCode.OK,
       success: true,
-      uploadId: upload.id
+      uploadId: upload.id,
+      filename : body.originalname
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: error.message
+      message: error.message,
+      
     };
   }
 };
@@ -753,18 +755,26 @@ exports.getSheets = async (uploadId) => {
 };
 
 // Step 3: Validate Mapping
-exports.validateMapping = async (mapping) => {
+exports.validateMapping = async ({valmapping , uploadId, sheet, mapping }) => {
   try {
-    if (!mapping.whatsapp_number)
+    if (!valmapping.whatsapp_number)
       return { statusCode: statusCode.BAD_REQUEST, success: false, message: "WhatsApp is required" };
     const fields = await LeadField.findAll({ where: { is_active: true } });
     console.log("Valid lead fields:", fields.map(f => f.name));
     const validFields = fields.map(f => f.name);
-    Object.keys(mapping.data || {}).forEach(f => {
+    Object.keys(valmapping.data || {}).forEach(f => {
       if (!validFields.includes(f))
         throw new Error(`Invalid field: ${f}`);
     });
-    return { statusCode: statusCode.OK, success: true };
+
+    const upload = await BulkLeadUpload.findByPk(uploadId);
+    const rows = parseExcel(upload.file_path, sheet);
+    const numbers = rows.map(r => r[mapping.whatsapp_number]);
+    const duplicates = await Lead.findAll({
+      where: { whatsapp_number: { [Op.in]: numbers } },
+      attributes: ["whatsapp_number"]
+    });
+    return { statusCode: statusCode.OK, success: true , duplicates};
   } catch (error) {
     return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
   }

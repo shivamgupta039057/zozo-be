@@ -154,11 +154,12 @@ exports.getSheets = async ({ params }) => {
 // Step 3: Validate Mapping
 exports.validateMapping = async ({ body }) => {
   try {
-    const result = await services.validateMapping(body.mapping);
+    const result = await services.validateMapping(body);
     return {
       statusCode: result.statusCode,
       success: result.success,
-      message: result.message || (result.success ? 'Mapping validated' : 'Mapping validation failed')
+      message: result.message || (result.success ? 'Mapping validated' : 'Mapping validation failed'),
+      duplicates : result.duplicates
     };
   } catch (error) {
     return {

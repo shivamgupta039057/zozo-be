@@ -6,6 +6,7 @@ exports.leadValidation = Joi.object({
     source: Joi.string().trim().required(),
     notes: Joi.string().trim().optional(),
      name: Joi.string().trim().required(),
+     upload_id : Joi.string().allow(null, "").optional(),
     whatsapp_number: Joi.string().trim().required(),
   });
   
