@@ -1,9 +1,9 @@
 const { statusCode, resMessage } = require("../../config/default.json");
 // const Lead = require("../../pgModels/lead");
-const leadstage = require("../../pgModels/LeadStages/LeadStage");
+// Import index to initialize associations
+const {LeadReason,LeadStatus,LeadStage}=require("../../pgModels/index");
 const { Op } = require("sequelize");
-const Leadstatus = require("../../pgModels/LeadStages/leadStatus");
-const Leadreason = require("../../pgModels/LeadStages/leadReason");
+
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -13,21 +13,11 @@ const Leadreason = require("../../pgModels/LeadStages/leadReason");
  * @throws Will throw an error if there is a database error.
  */
 exports.createLeadStage = async (body) => {
-  console.log("fdgdfkgjldfdkldskl" , body);
-  
-    const { name, ...rest } = body;
+  const { name, order: bodyOrder } = body;
   try {
-    // Check for existing entry by name or order
-    const existingField = await leadstage.findOne({
-      where: {
-        [Op.or]: [
-          { name: name },
-          { order: rest.order }
-        ]
-      },
-    });
-
-    if (existingField) {
+    // Check if a LeadStage already exists with the same name
+    const existingByName = await LeadStage.findOne({ where: { name } });
+    if (existingByName) {
       return {
         statusCode: statusCode.BAD_REQUEST,
         success: false,
@@ -35,19 +25,38 @@ exports.createLeadStage = async (body) => {
       };
     }
 
-    const leadfiled = await leadstage.create(body);
+    // If an order is provided, check for order duplication
+    if (typeof bodyOrder !== 'undefined' && bodyOrder !== null) {
+      const existingByOrder = await LeadStage.findOne({ where: { order: bodyOrder } });
+      if (existingByOrder) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: "Order value already exists. Please use a different order.",
+        };
+      }
+    }
+
+    // If no order is provided, set the next order automatically
+    let leadData = { ...body };
+    if (typeof bodyOrder === 'undefined' || bodyOrder === null) {
+      const maxOrder = await LeadStage.max('order');
+      leadData.order = typeof maxOrder === 'number' ? maxOrder + 1 : 1;
+    }
+
+    const leadfield = await LeadStage.create(leadData);
 
     return {
       statusCode: statusCode.OK,
       success: true,
       message: resMessage.Add_LEAD_FIELD_Data,
-      data: leadfiled,
+      data: leadfield,
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: error.message,
+      message: error && error.message ? error.message : "An error occurred",
     };
   }
 };
@@ -55,7 +64,7 @@ exports.createLeadStage = async (body) => {
 exports.getAllLeadStages = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const getfield = await leadstage.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadStage.findAll({ order: [["order", "ASC"]] });
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -75,7 +84,7 @@ exports.getAllLeadByIdStages = async (query , params) => {
   const { page = 1, limit = 10} = query;
   const { id } = params;
   try {
-    const getfield = await leadstage.findByPk(id);
+    const getfield = await LeadStage.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -94,7 +103,7 @@ exports.getAllLeadByIdStages = async (query , params) => {
 exports.updateLeadStage = async (params, body) => {
   const { id } = params;
   try {
-    const [updatedCount] = await leadstage.update(
+    const [updatedCount] = await LeadStage.update(
       { ...body },
       {
         where: { id: id },
@@ -110,7 +119,7 @@ exports.updateLeadStage = async (params, body) => {
         data: null,
       };
     }
-    const updatedStage = await leadstage.findByPk(id);
+    const updatedStage = await LeadStage.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -130,7 +139,7 @@ exports.updateLeadStage = async (params, body) => {
 exports.deleteLeadStage = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await leadstage.destroy(
+    const updatefield = await LeadStage.destroy(
       {
         where: { id: id },
       }
@@ -154,67 +163,92 @@ exports.deleteLeadStage = async (params) => {
 // lead status routes
 
 exports.createLeadStatus = async (body) => {
-  console.log("createLeadStatuscreateLeadStatus" , body); 
+  console.log("createLeadStatuscreateLeadStatus", body);
   try {
-  const { stage_id, name, color } = body;
-  const existingStatus = await Leadstatus.findOne({
-    where: {
-      stage_id,
-      name: {
-        [Op.iLike]: name
+    const { stage_id, name, color, is_default } = body;
+
+    // Check if the status already exists within the given stage (case-insensitive)
+    const existingStatus = await LeadStatus.findOne({
+      where: {
+        stage_id,
+        name: {
+          [Op.iLike]: name,
+        },
+      },
+    });
+    if (existingStatus) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: `Status "${name}" already exists in this stage`,
+      };
+    }
+
+    // If is_default is true, check if there is already a default status for this stage
+    if (is_default === true || is_default === "true") {
+      const existingDefault = await LeadStatus.findOne({
+        where: {
+          is_default: true,
+        },
+      });
+      if (existingDefault) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: `Default status already exists in this stage. Only one default can be set.`,
+        };
       }
-    },
-  });
-  if (existingStatus) {
+    }
+
+    // Find the current max order for the stage
+    const maxOrderStatus = await LeadStatus.findOne({
+      where: { stage_id },
+      order: [["order", "DESC"]],
+      attributes: ["order"],
+    });
+    const nextOrder = maxOrderStatus ? maxOrderStatus.order + 1 : 1;
+
+    const leadStatusCreate = await LeadStatus.create({
+      stage_id,
+      name,
+      color,
+      is_default: is_default || false,
+      order: nextOrder,
+    });
+
+    const leadstatus = await LeadStatus.findByPk(leadStatusCreate.id, {
+      attributes: ["id", "name", "order", "color", "is_active", "stage_id", "is_default"],
+    });
+    const leadstatusdata = leadstatus
+      ? {
+          id: leadstatus.id,
+          name: leadstatus.name,
+          order: leadstatus.order,
+          color: leadstatus.color,
+          is_active: leadstatus.is_active,
+          is_default: leadstatus.is_default,
+        }
+      : null;
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: resMessage.Add_LEAD_FIELD_Data,
+      data: leadstatusdata || null,
+    };
+  } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: `Status "${name}" already exists in this stage`,
+      message: error.message,
     };
   }
-  const maxOrderStatus = await Leadstatus.findOne({
-    where: { stage_id },
-    order: [["order", "DESC"]],
-    attributes: ["order"],
-  });
-  const nextOrder = maxOrderStatus ? maxOrderStatus.order + 1 : 1;
-  console.log("maxOrderStatusmaxOrderStatus" , nextOrder);
-  // const leadStatusCreate = await Leadstatus.create(body);
-  const leadStatusCreate = await Leadstatus.create({
-    stage_id,
-    name,
-    color,
-    order: nextOrder,
-  });
-  const leadstatus = await Leadstatus.findByPk(leadStatusCreate.id, {
-    attributes: ["id", "name", "order", "color", "is_active", "stage_id"],
-  });
-  const leadstatusdata = leadstatus ? {
-    id: leadstatus.id,
-    name: leadstatus.name,
-    order: leadstatus.order,
-    color: leadstatus.color,
-    is_active: leadstatus.is_active,
-  } : null;
-  return {
-    statusCode: statusCode.OK,
-    success: true,
-    message: resMessage.Add_LEAD_FIELD_Data,
-    data: leadstatusdata || null ,
-    };
-} catch (error) {
-  return {
-    statusCode: statusCode.BAD_REQUEST,
-    success: false,
-    message: error.message,
-  };
-}
 };
 
 exports.getAllLeadStatuses = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const getfield = await Leadstatus.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadStatus.findAll({ order: [["order", "ASC"]] });
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -234,7 +268,7 @@ exports.getAllLeadStatuses = async (query) => {
 exports.updateLeadStatus = async (params, body) => {
   const { id } = params;
   try {
-    const [updatedCount] = await Leadstatus.update(
+    const [updatedCount] = await LeadStatus.update(
       { ...body },
       {
         where: { id: id },
@@ -250,7 +284,7 @@ exports.updateLeadStatus = async (params, body) => {
         data: null,
       };
     }
-    const updatedStage = await Leadstatus.findByPk(id);
+    const updatedStage = await LeadStatus.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -272,7 +306,7 @@ exports.updateLeadStatus = async (params, body) => {
 exports.deleteLeadStatus = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await Leadstatus.destroy(
+    const updatefield = await LeadStatus.destroy(
       {
         where: { id: id },
       }
@@ -303,7 +337,7 @@ exports.createReasonStatus = async (body) => {
     const { status_id, reason } = body;
 
     // Check for duplicate reason in the same status
-    const existingReason = await Leadreason.findOne({
+    const existingReason = await LeadReason.findOne({
       where: {
         status_id,
         reason: {
@@ -321,7 +355,7 @@ exports.createReasonStatus = async (body) => {
     }
 
     // Get max order for the given status_id
-    const maxOrderReason = await Leadreason.findOne({
+    const maxOrderReason = await LeadReason.findOne({
       where: { status_id },
       order: [["order", "DESC"]],
       attributes: ["order"],
@@ -329,14 +363,14 @@ exports.createReasonStatus = async (body) => {
     const nextOrder = maxOrderReason ? maxOrderReason.order + 1 : 1;
 
     // Create the lead reason
-    const leadReasonCreate = await Leadreason.create({
+    const leadReasonCreate = await LeadReason.create({
       status_id,
       reason,
       order: nextOrder,
     });
 
     // Fetch the created lead reason
-    const leadReason = await Leadreason.findByPk(leadReasonCreate.id, {
+    const leadReason = await LeadReason.findByPk(leadReasonCreate.id, {
       attributes: ["id", "status_id", "reason", "order", "is_active"],
     });
 
@@ -366,7 +400,7 @@ exports.createReasonStatus = async (body) => {
 exports.getAllReasonStatuses = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const getfield = await Leadreason.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadReason.findAll({ order: [["order", "ASC"]] });
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -386,7 +420,7 @@ exports.getAllReasonStatuses = async (query) => {
 exports.updateReasonStatus = async (params, body) => {
   const { id } = params;
   try {
-    const [updatedCount] = await Leadreason.update(
+    const [updatedCount] = await LeadReason.update(
       { ...body },
       {
         where: { id: id },
@@ -402,7 +436,7 @@ exports.updateReasonStatus = async (params, body) => {
         data: null,
       };
     }
-    const updatedStage = await Leadreason.findByPk(id);
+    const updatedStage = await LeadReason.findByPk(id);
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -422,7 +456,7 @@ exports.updateReasonStatus = async (params, body) => {
 exports.deleteReasonStatus = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await Leadreason.destroy(
+    const updatefield = await LeadReason.destroy(
       {
         where: { id: id },
       }
@@ -446,14 +480,14 @@ exports.deleteReasonStatus = async (params) => {
 exports.getfullLeads = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const datafullleads = await leadstage.findAll({
+    const datafullleads = await LeadStage.findAll({
       include: [
         {
-          model: Leadstatus,
+          model: LeadStatus,
           as: 'statuses',
           include: [
             {
-              model: Leadreason,
+              model: LeadReason,
               as: 'reasons',
             }
           ]
@@ -461,10 +495,10 @@ exports.getfullLeads = async (query) => {
       ],
       order: [
         ["order", "ASC"],
-        [{ model: Leadstatus, as: "statuses" }, "order", "ASC"],
+        [{ model: LeadStatus, as: "statuses" }, "order", "ASC"],
         [
-          { model: Leadstatus, as: "statuses" },
-          { model: Leadreason, as: "reasons" },
+          { model: LeadStatus, as: "statuses" },
+          { model: LeadReason, as: "reasons" },
           "order",
           "ASC",
         ],

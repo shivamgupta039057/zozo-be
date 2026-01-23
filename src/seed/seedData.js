@@ -1,12 +1,9 @@
-const Role = require("../pgModels/roleModel");
-const Permission = require("../pgModels/permissionModel");
-const RolePermission = require("../pgModels/rolePermission");
-const PermissionTemplate = require("../pgModels/permissionTemplateModel");
-const PermissionTemplatePermission = require("../pgModels/permissionTemplatePermissionModel");
+const { RoleModel } = require("../pgModels/index");
+
 
 const seed = async () => {
   // Roles
-  const roles = await Role.bulkCreate([
+  const roles = await RoleModel.bulkCreate([
     {roleName:"Root"},
     { roleName: "Admin" },
     { roleName: "Manager" },
@@ -15,7 +12,7 @@ const seed = async () => {
   ]);
 
   // Permissions
-  // const permissions = await Permission.bulkCreate([
+  // const permissions = await PermissionModel.bulkCreate([
   //   { name: "user.create" },
   //   { name: "user.view" },
   //   { name: "leads.add" },

@@ -7,7 +7,7 @@ exports.addUserVal = Joi.object({
     password: Joi.string().required(),
     phone: Joi.string().required(),
     roleId: Joi.string().required(),
-    permissionTemplateId: Joi.string().required(),
+    permissionTemplateId: Joi.string().optional(),
     initials: Joi.string().required(),
     reportingTo: Joi.number().optional().allow(null, ""),       // ✅ allow empty
     reporteeIds: Joi.array().items(Joi.number()).optional().allow(null, "")

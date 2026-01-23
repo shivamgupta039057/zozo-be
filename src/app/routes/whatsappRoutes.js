@@ -6,18 +6,18 @@ const validate = require("../../helper/validate");
 const { leadValidation } = require("../../validators/app/leadVal.js");
 const upload = require('../../helper/multer');
 const { uploadFile } = require("../../helper/fileUploader");
+const auth = require("../../middleware/auth");
 
-router.get('/webhook',responseHandler(controller.verifyWebhook));
-router.post('/webhook',responseHandler(controller.receiveMessage));
-// new workflwo data
-router.post('/send-text',responseHandler(controller.sendText));
-router.post('/send-template', responseHandler(controller.sendTemplate));
+router.get('/webhook', responseHandler(controller.verifyWebhook)); // public
+router.post('/webhook', responseHandler(controller.receiveMessage)); // public
+// new workflow data
+router.post('/send-text', auth, responseHandler(controller.sendText));
+router.post('/send-template', auth, responseHandler(controller.sendTemplate));
 
-
-router.get('/chats',responseHandler(controller.getChat));
-router.get('/get-template',responseHandler(controller.getTemplates));
-router.post('/create-template',responseHandler(controller.createTemplate));
-router.get('/messages/:id',responseHandler(controller.getMessagesByChatId));
+router.get('/chats', auth, responseHandler(controller.getChat));
+router.get('/get-template', auth, responseHandler(controller.getTemplates));
+router.post('/create-template', auth, responseHandler(controller.createTemplate));
+router.get('/messages/:id', auth, responseHandler(controller.getMessagesByChatId));
 
 
 

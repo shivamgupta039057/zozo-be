@@ -1,29 +1,53 @@
+
 const { statusCode, resMessage } = require("../../config/default.json");
-const { PermissionTemplateModel,UserModel } = require("../../pgModels/index");
+const { PermissionTemplateModel,UserModel,MainMenuModel,TemplatePermissionModel } = require("../../pgModels/index");
 
 
 exports.getPermssionTemplates = async () => {
   try {
-
-    // const roles = await PermissionTemplateModel.findAll();
     const templates = await PermissionTemplateModel.findAll({
-    include: [{ model: UserModel, as: 'users', attributes: ['id'] }]
-  });
+      include: [
+        { model: UserModel, as: 'users', attributes: ['id'] }
+      ]
+    });
 
-  let roles= templates.map(t => ({
-    id: t.id,
-    name: t.templateName,
-    permissions: t.permissions,
-    assignTo: t.users.length,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt
-  }));
+    // For each template, fetch its permissions with menu info
+    const result = [];
+    for (const t of templates) {
+      // Get all permissions for this template, joined with menu
+      const perms = await TemplatePermissionModel.findAll({
+        where: { PermissionTemplateId: t.id },
+        include: [
+          { model: MainMenuModel }
+        ]
+      });
+     
+      const permissions = perms.map(p => ({
+        menuId: p.MenuId,
+        menuName: p.Menu ? p.Menu.name : undefined,
+        menuPath: p.Menu ? p.Menu.path : undefined,
+        menuOrder: p.Menu ? p.Menu.order : undefined,
+        isHeaderMenu: p.Menu ? p.Menu.isHeaderMenu : undefined,
+        create: p.canCreate,
+        view: p.canView,
+        edit: p.canEdit,
+        delete: p.canDelete
+      }));
+      result.push({
+        id: t.id,
+        name: t.name || t.templateName,
+        permissions,
+        assignTo: t.users ? t.users.length : 0,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt
+      });
+    }
 
     return {
       statusCode: statusCode.OK,
       success: true,
       message: "Permission Template",
-      data: roles,
+      data: result,
     };
   } catch (error) {
     return {
@@ -38,12 +62,12 @@ exports.getPermssionTemplates = async () => {
 exports.getTemplatesName = async () => {
   try {
     const templates = await PermissionTemplateModel.findAll({
-      attributes: ['templateName', 'id']
+      attributes: ['name', 'id']
     });
 
     const templateNames = templates.map(t => ({
       id: t.id,
-      templateName: t.templateName
+      templateName: t.name
     }));
 
     return {
@@ -64,30 +88,24 @@ exports.getTemplatesName = async () => {
 
 exports.createPermissionTemplate = async (body) => {
   try {
-    const { templateName } = body;
+    const { name,permissions } = body;
 
-    // Default permission structure
-    const defaultPermissions = {
-      lead: {
-        manage: "NO",
-        delete: "NO",
-        export: "NO"
-      },
-      team: {
-        viewUsers: "NO",
-        addUsers: "NO"
-      },
-      reports: {
-        viewDashboard: "NO",
-        createDashboard: "NO"
-      }
-    };
+  const template = await PermissionTemplateModel.create({ name });
 
-    const template = await PermissionTemplateModel.create({
-      templateName,
-      permissions: defaultPermissions
+  for (const perm of permissions) {
+    const menu = await MainMenuModel.findOne({ where: { id:perm.menuId } });
+
+    if (!menu) continue;
+
+    await TemplatePermissionModel.create({
+      PermissionTemplateId: template.id,
+      MenuId: menu.id,
+      canCreate: perm.create || false,
+      canView: perm.view || false,
+      canEdit: perm.edit || false,
+      canDelete: perm.delete || false,
     });
-
+  }
 
     return {
       statusCode: statusCode.OK,
@@ -132,3 +150,69 @@ exports.updatePermissionTemplate = async (param, body) => {
     };
   }
 };
+
+
+exports.getMenuList = async () => {
+  try {
+    const menus = await MainMenuModel.findAll();
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: "Menu List",
+      data: menus,
+    };
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+
+// Get permissions for a user by their id (from auth)
+exports.getUserPermissions = async (userId) => {
+  try {
+    // Find user and their permission template
+    const user = await UserModel.findByPk(userId);
+    if (!user || !user.permissionTemplateId) {
+      return {
+        statusCode: statusCode.NOT_FOUND,
+        success: false,
+        message: "User or permission template not found",
+      };
+    }
+    // Get all permissions for this user's template, joined with menu
+    const perms = await TemplatePermissionModel.findAll({
+      where: { PermissionTemplateId: user.permissionTemplateId },
+      include: [
+        { model: MainMenuModel }
+      ]
+    });
+    const permissions = perms.map(p => ({
+      menuId: p.MenuId,
+      menuName: p.Menu ? p.Menu.name : undefined,
+      menuPath: p.Menu ? p.Menu.path : undefined,
+      menuOrder: p.Menu ? p.Menu.order : undefined,
+      isHeaderMenu: p.Menu ? p.Menu.isHeaderMenu : undefined,
+      create: p.canCreate,
+      view: p.canView,
+      edit: p.canEdit,
+      delete: p.canDelete
+    }));
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: "User permissions fetched",
+      data: permissions,
+    };
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+

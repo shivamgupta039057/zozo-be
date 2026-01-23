@@ -8,7 +8,6 @@ module.exports = (sequelize, DataTypes) => {
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      // references: will be set up in associations
       onDelete: 'CASCADE',
     },
     fb_page_id: {
@@ -27,9 +26,13 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    access_token: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+    },
     status: {
-      type: DataTypes.ENUM('active', 'inactive'),
-      defaultValue: 'active',
+      type: DataTypes.ENUM('inactive', 'active'),
+      defaultValue: 'inactive',
     },
     created_at: {
       type: DataTypes.DATE,

@@ -1,9 +1,6 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const Lead = require("../../pgModels/lead");
-const LeadField = require("../../pgModels/leadField");
-// const Lead = require("../../pgModels/lead");
-const leadfield = require("../../pgModels/leadField");
 const OnLeadFieldChange = require("../../utils/OnLeadFieldChange");
+const {LeadField,Lead}= require("../../pgModels");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -12,17 +9,21 @@ const OnLeadFieldChange = require("../../utils/OnLeadFieldChange");
  * @throws Will throw an error if there is a database error.
  */
 exports.createLeadField = async (body) => {
-  console.log("fdsfkljsdfdklfdjs", body);
 
+  console.log("bodybodybodydddddddddddddd" , body);
+  
   try {
     const { label, ...rest } = body;
 
-    const existingField = await leadfield.findOne({
+    // let a=await LeadField.findAll();
+    // console.log("aaaaaaaaaa" , a);
+    const existingField = await LeadField.findOne({
       where: {
-        label: label,
+        label: label
       },
     });
 
+    console.log("existingFieldexistingField" , existingField);
     if (existingField) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -33,7 +34,8 @@ exports.createLeadField = async (body) => {
 
     const name = label.toLowerCase().trim().replace(/\s+/g, "_");
     
-     const maxOrderStatus = await leadfield.findOne({
+    
+     const maxOrderStatus = await LeadField.findOne({
      order: [["order", "DESC"]],
      attributes: ["order"],
     });
@@ -42,7 +44,7 @@ exports.createLeadField = async (body) => {
 
    
 
-    const leadfiled = await leadfield.create({ ...rest, label, name , order: nextOrder });
+    const leadfiled = await LeadField.create({ ...rest, label:label, name , order: nextOrder });
     
     return {
       statusCode: statusCode.OK,
@@ -60,14 +62,19 @@ exports.createLeadField = async (body) => {
 };
 
 exports.getAllLeadFields = async (query) => {
-  const { page = 1, limit = 10} = query;
+  const { page = 1, limit = 10 } = query;
   try {
-    const getfield = await leadfield.findAll({ order: [["order", "ASC"]] });
+    const getfield = await LeadField.findAll({ order: [["order", "ASC"]] });
+
+    // Create array of { number: i+1, name: leadfield.name }
+    // const whatsappNumber = await Lead.findOne({ where: { name: "whatsapp_number" } });
+
     return {
       statusCode: statusCode.OK,
       success: true,
       message: resMessage.GET_LEAD_FIELD_Data,
       data: getfield,
+      // whatsappNumber, // Add numbered key-name pairs to response
     };
   } catch (error) {
     return {
@@ -163,7 +170,7 @@ exports.updateLeadFieldServices = async (params, body) => {
 exports.deleteLeadField = async (params) => {
   const { id } = params;
   try {
-    const updatefield = await leadfield.destroy(
+    const updatefield = await LeadField.destroy(
       {
         where: { id: id },
       }
@@ -187,8 +194,8 @@ exports.deleteLeadField = async (params) => {
 exports.reorderLeadField = async (query) => {
   const { page = 1, limit = 10} = query;
   try {
-    const leadsName = await leadfield.findAll({ 
-      attributes: ['lable'], 
+    const leadsName = await LeadField.findAll({ 
+      attributes: ['label'], 
       order: [["order", "ASC"]] 
     });
     return {

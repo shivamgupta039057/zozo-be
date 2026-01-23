@@ -6,9 +6,10 @@ const validate = require("../../helper/validate");
 const { leadValidation } = require("../../validators/app/leadVal.js");
 const upload = require('../../helper/multer');
 const { uploadFile } = require("../../helper/fileUploader");
+const auth = require("../../middleware/auth");
 
-router.post('/upload-media', upload.single('image'), uploadFile, responseHandler(controller.uploadMedia));
-router.get('/get-media', responseHandler(controller.getMedia));
+router.post('/upload-media', auth, upload.single('image'), uploadFile, responseHandler(controller.uploadMedia));
+router.get('/get-media', auth, responseHandler(controller.getMedia));
 
 
 

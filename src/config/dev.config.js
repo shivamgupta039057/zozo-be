@@ -7,6 +7,7 @@ module.exports = {
   PG_DB: process.env.PG_DB || "visuti_userdb",
   PG_USER: process.env.PG_USER || "postgres",
   PG_PASS: process.env.PG_PASS || "1234",
+  DB_PORT: process.env.DB_PORT || 5432,
   // PG_PASS: process.env.PG_PASS || 'visutiCarrer',
   PG_DIALECT: process.env.PG_DIALECT || "postgres",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",

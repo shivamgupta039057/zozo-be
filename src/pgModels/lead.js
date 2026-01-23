@@ -1,8 +1,5 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/postgres.config");
-const LeadStage = require("./LeadStages/LeadStage");
-const LeadStatus = require("./LeadStages/leadStatus");
-const LeadReason = require("./LeadStages/leadReason");
 
 const Lead = sequelize.define(
   "Lead",
@@ -12,38 +9,46 @@ const Lead = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
-    data: {
-      type: DataTypes.JSONB,
-      allowNull: true,  // store form data dynamically
-    }, 
     name: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    meta: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    data: {
+      type: DataTypes.JSONB,
+      allowNull: true,  // store form data dynamically
     },
     whatsapp_number: {
       type: DataTypes.STRING,
       allowNull: true,
     },
     source: {
-      type: DataTypes.STRING, 
+      type: DataTypes.STRING,
       allowNull: true,
     },
     assignedTo: {
-      type: DataTypes.STRING, // Counselor ID or Name
+      type: DataTypes.INTEGER, // User ID
       allowNull: true,
+      references: {
+        model: "users",
+        key: "id",
+      },
     },
     stage_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: LeadStage,
+        model: "leadstage",
         key: "id",
       },
     },
     status_id: {
       type: DataTypes.INTEGER,
       references: {
-        model: LeadStatus,
+        model: "lead_statuses",
         key: "id",
       },
       allowNull: true,
@@ -51,7 +56,7 @@ const Lead = sequelize.define(
     reason_id: {
       type: DataTypes.INTEGER,
       references: {
-        model: LeadReason,
+        model: "lead_reasons",
         key: "id",
       },
       allowNull: true,
@@ -61,18 +66,31 @@ const Lead = sequelize.define(
       allowNull: true,
     },
     created_by: {
-      type: DataTypes.STRING, // admin/user ID who created this lead
+      type: DataTypes.INTEGER, // admin/user ID who created this lead
       allowNull: true,
+      references: {
+        model: "users",
+        key: "id",
+      },
+    },
+    upload_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "bulk_lead_uploads",
+        key: "id"
+      }
     },
   },
-  {
-    timestamps: true,
-    tableName: "leads",
-  }
+{
+  tableName: "leads",
+  timestamps: true,
+}
+
 );
 
-Lead.belongsTo(LeadStage, { foreignKey: "stage_id", as: "stage" });
-Lead.belongsTo(LeadStatus, { foreignKey: "status_id", as: "status" });
-Lead.belongsTo(LeadReason, { foreignKey: "reason_id", as: "reason" });
+
+
 
 module.exports = Lead;
+

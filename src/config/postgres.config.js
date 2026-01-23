@@ -2,6 +2,9 @@ const { Sequelize } = require('sequelize');
 const devConfig = require('./dev.config');
 
 
+
+
+
 const sequelize = new Sequelize(
   devConfig.PG_DB,      // Database name
   devConfig.PG_USER,    // Username
@@ -9,8 +12,8 @@ const sequelize = new Sequelize(
 
   {
     host: devConfig.PG_HOST,
-    dialect: "postgres",
-    port: 5432,
+    dialect: devConfig.PG_DIALECT,
+    port: devConfig.DB_PORT,
     logging: false,
   }
 );

@@ -9,7 +9,8 @@ const upload = require('../../helper/multer');
 const { uploadFile } = require("../../helper/fileUploader");
 // Get Homepage Data
 
-router.post('/addAbroad', upload.single('image'), uploadFile, validate(abroadValidation) , responseHandler(controllers.addAbroadPage));
+
+router.post('/addAbroad', auth, upload.single('image'), uploadFile, validate(abroadValidation), responseHandler(controllers.addAbroadPage));
 
 
 

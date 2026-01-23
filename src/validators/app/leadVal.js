@@ -6,6 +6,7 @@ exports.leadValidation = Joi.object({
     source: Joi.string().trim().required(),
     notes: Joi.string().trim().optional(),
      name: Joi.string().trim().required(),
+     upload_id : Joi.string().allow(null, "").optional(),
     whatsapp_number: Joi.string().trim().required(),
   });
   
@@ -28,8 +29,8 @@ leadFieldValidation = Joi.object({
     ).required(),
     options: Joi.array().items(
         Joi.object({
-            label: Joi.string().trim().required(),
-            value: Joi.string().trim().required(),
+            id: Joi.number().optional(),
+            name: Joi.string().trim().optional(),
             order: Joi.number().integer().optional()
         })
     ).optional(),
@@ -43,9 +44,11 @@ leadFieldValidation = Joi.object({
 
 exports.leadStageValidation = Joi.object({
     name: Joi.string().trim().required(),
-    order: Joi.number().integer().required(),
+    order: Joi.number().integer().optional(),
     color: Joi.string().allow(null, "").optional(),
-    is_active: Joi.boolean().default(true).optional(),    
+    is_active: Joi.boolean().default(true).optional(),
+    stage_id: Joi.number().allow(null).optional(),
+    is_default:Joi.boolean().optional(),
 });
 
 // Joi validation schema for LeadStatus model
@@ -53,7 +56,8 @@ exports.leadStatusValidation = Joi.object({
     stage_id: Joi.number().required(),
     name: Joi.string().trim().required(),
     color: Joi.string().allow(null, "").optional(),
-    is_default:Joi.boolean().optional()
+    is_default:Joi.boolean().optional(),
+    order: Joi.number().integer().optional(),
 });
 
 // Joi validation schema for LeadReason model
