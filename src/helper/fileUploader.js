@@ -23,7 +23,6 @@ exports.uploadFile = (req, res, next) => {
           : (req.body.extension = [newone]);
       }
     } else if (req.file) {
-   
       // req.body[req.file.fieldname] = req.file.filename;
       // req.body[req.file.fieldname] = `${req.body.folderName}/${req.file.filename}`;
       req.body[
@@ -31,7 +30,6 @@ exports.uploadFile = (req, res, next) => {
       ] = `${req.body.folderName}/${req.file.filename}`;
       req.body.originalname = req.file.originalname;
       req.body.path= req.file.path;
-      console.log(req.body, "mmmmmmmmm");
       const type = req.file.mimetype.split("/")[0];
       req.body.extension = type;
     }

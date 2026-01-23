@@ -7,7 +7,7 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { parseExcel, buildLeadPayload } = require("../../utils/leadBulkInsert");
+const { parseExcel, buildLeadPayload,buildAssignmentPlan } = require("../../utils/leadBulkInsert");
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -624,20 +624,119 @@ exports.getStageStatusStructure = async () => {
 };
 
 // Bulk assign leads to users by percentage
+// exports.bulkAssignLeads = async (body) => {
+//   // body: { leadIds: [1,2,3,4], userIds: [10,11], percentages: [60,40] }
+//   const { leadIds, userIds, percentages } = body;
+//   if (
+//     !Array.isArray(leadIds) ||
+//     !Array.isArray(userIds) ||
+//     !Array.isArray(percentages)
+//   ) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: "leadIds, userIds, and percentages must be arrays",
+//     };
+//   }
+//   if (userIds.length !== percentages.length) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: "userIds and percentages must have the same length",
+//     };
+//   }
+//   if (percentages.reduce((a, b) => a + b, 0) !== 100) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: "Percentages must sum to 100",
+//     };
+//   }
+//   // Calculate how many leads per user
+//   const totalLeads = leadIds.length;
+//   console.log("Total leads to assign:", totalLeads);
+//   let counts = percentages.map((p) => Math.floor((p / 100) * totalLeads));
+//   // Distribute any remainder
+//   let assigned = counts.reduce((a, b) => a + b, 0);
+//   console.log("Initial assigned leads:", assigned);
+//   let remainder = totalLeads - assigned;
+
+//   console.log("Initial counts:", counts, "Remainder:", remainder);
+//   for (let i = 0; remainder > 0 && i < counts.length; i++, remainder--) {
+//     counts[i]++;
+//   }
+//   // Assign leads
+//   let updates = [];
+//   let leadIndex = 0;
+//   const assignmentMap = {};
+//   for (let i = 0; i < userIds.length; i++) {
+//     assignmentMap[userIds[i]] = [];
+//     for (let j = 0; j < counts[i]; j++) {
+//       if (leadIndex < leadIds.length) {
+//         updates.push(
+//           Lead.update(
+//             { assignedTo: userIds[i] },
+//             { where: { id: leadIds[leadIndex] } }
+//           )
+//         );
+//         assignmentMap[userIds[i]].push(leadIds[leadIndex]);
+//         leadIndex++;
+//       }
+//     }
+//   }
+//   await Promise.all(updates);
+//   // Console output for assignment
+//   Object.entries(assignmentMap).forEach(([userId, leads]) => {
+//     console.log(
+//       `User ${userId} assigned leads: [${leads.join(", ")}] (Total: ${leads.length
+//       })`
+//     );
+//   });
+//   return {
+//     statusCode: statusCode.OK,
+//     success: true,
+//     message: "Leads assigned successfully",
+//     assignment: assignmentMap,
+//   };
+// };
+
 exports.bulkAssignLeads = async (body) => {
-  // body: { leadIds: [1,2,3,4], userIds: [10,11], percentages: [60,40] }
-  const { leadIds, userIds, percentages } = body;
-  if (
-    !Array.isArray(leadIds) ||
-    !Array.isArray(userIds) ||
-    !Array.isArray(percentages)
-  ) {
+  // body: { leadIds: [1,2,3,4], userIds: [10,11], percentages: [60,40] },statusId:1
+  // body may or may not have userIds and percentages for assignment
+  // if only statusId is provided, just update status for all leads
+  // if both assignment and statusId provided, do both
+  const { leadIds, userIds, percentages, statusId } = body;
+
+  if (!Array.isArray(leadIds) || leadIds.length === 0) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: "leadIds, userIds, and percentages must be arrays",
+      message: "leadIds must be a non-empty array",
     };
   }
+
+  const hasAssignment =
+    Array.isArray(userIds) &&
+    userIds.length > 0 &&
+    Array.isArray(percentages) &&
+    percentages.length > 0;
+
+  // ✅ CASE: only status update
+  if (!hasAssignment) {
+    if (statusId) {
+      await Lead.update({ status_id: statusId }, { where: { id: leadIds } });
+    }
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: statusId
+        ? "Leads status updated successfully"
+        : "No assignment or status change applied",
+    };
+  }
+
+  // assignment validation
   if (userIds.length !== percentages.length) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -645,6 +744,7 @@ exports.bulkAssignLeads = async (body) => {
       message: "userIds and percentages must have the same length",
     };
   }
+
   if (percentages.reduce((a, b) => a + b, 0) !== 100) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -652,51 +752,43 @@ exports.bulkAssignLeads = async (body) => {
       message: "Percentages must sum to 100",
     };
   }
-  // Calculate how many leads per user
+
   const totalLeads = leadIds.length;
-  console.log("Total leads to assign:", totalLeads);
-  let counts = percentages.map((p) => Math.floor((p / 100) * totalLeads));
-  // Distribute any remainder
+
+  let counts = percentages.map(p =>
+    Math.floor((p / 100) * totalLeads)
+  );
+
   let assigned = counts.reduce((a, b) => a + b, 0);
-  console.log("Initial assigned leads:", assigned);
   let remainder = totalLeads - assigned;
 
-  console.log("Initial counts:", counts, "Remainder:", remainder);
-  for (let i = 0; remainder > 0 && i < counts.length; i++, remainder--) {
+  for (let i = 0; remainder > 0; i++, remainder--) {
     counts[i]++;
   }
-  // Assign leads
-  let updates = [];
+
   let leadIndex = 0;
-  const assignmentMap = {};
+  const updates = [];
+
   for (let i = 0; i < userIds.length; i++) {
-    assignmentMap[userIds[i]] = [];
     for (let j = 0; j < counts[i]; j++) {
-      if (leadIndex < leadIds.length) {
-        updates.push(
-          Lead.update(
-            { assignedTo: userIds[i] },
-            { where: { id: leadIds[leadIndex] } }
-          )
-        );
-        assignmentMap[userIds[i]].push(leadIds[leadIndex]);
-        leadIndex++;
-      }
+      updates.push(
+        Lead.update(
+          {
+            assignedTo: userIds[i],
+            ...(statusId ? { status_id: statusId } : {})
+          },
+          { where: { id: leadIds[leadIndex++] } }
+        )
+      );
     }
   }
+
   await Promise.all(updates);
-  // Console output for assignment
-  Object.entries(assignmentMap).forEach(([userId, leads]) => {
-    console.log(
-      `User ${userId} assigned leads: [${leads.join(", ")}] (Total: ${leads.length
-      })`
-    );
-  });
+
   return {
     statusCode: statusCode.OK,
     success: true,
     message: "Leads assigned successfully",
-    assignment: assignmentMap,
   };
 };
 
@@ -711,7 +803,7 @@ exports.uploadFile = async (body, user) => {
       file_path: body.path,
       uploaded_by: user.id
     });
-    console.log("Upload record created:", upload.id);
+    // console.log("Upload record created:", upload.id);
     return {
       message: "File uploaded successfully",
       statusCode: statusCode.OK,
@@ -733,6 +825,7 @@ exports.uploadFile = async (body, user) => {
 exports.getSheets = async (uploadId) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
+    console.log("Fetched upload record:", upload);
     const wb = XLSX.readFile(upload.file_path);
     const sheet = wb.SheetNames[0];
     const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1 })[0];
@@ -797,18 +890,101 @@ exports.checkDuplicates = async ({ uploadId, sheet, mapping }) => {
 };
 
 // Step 5: Commit Import
-exports.commitImport = async ({ uploadId, sheet, mapping, user }) => {
+// exports.commitImport = async ({ uploadId, sheet, mapping, user }) => {
+//   try {
+//     const upload = await BulkLeadUpload.findByPk(uploadId);
+//     const rows = parseExcel(upload.file_path, sheet);
+//     const leads = rows.map(row =>
+//       buildLeadPayload(row, mapping, user.id, uploadId)
+//     );
+//     await Lead.bulkCreate(leads);
+//     await upload.update({ status: "COMPLETED" });
+//     return { statusCode: statusCode.OK, success: true, inserted: leads.length };
+//   } catch (error) {
+//     return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+//   }
+// };
+
+
+exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
+    if (!upload) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "Upload not found"
+      };
+    }
+
     const rows = parseExcel(upload.file_path, sheet);
-    const leads = rows.map(row =>
-      buildLeadPayload(row, mapping, user.id, uploadId)
-    );
-    await Lead.bulkCreate(leads);
+    if (!rows.length) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "No rows found in excel"
+      };
+    }
+
+    // 🔥 STEP 1: build assignment PLAN (before lead create)
+    let assignmentPlan = null;
+    let assignmentUsers = [];
+    let currentUserIndex = 0;
+    let currentUserRemaining = 0;
+
+    if (assignment?.userIds?.length) {
+      assignmentPlan = buildAssignmentPlan({
+        total: rows.length,
+        userIds: assignment.userIds,
+        percentages: assignment.percentages
+      });
+
+      assignmentUsers = Object.keys(assignmentPlan);
+      currentUserRemaining = assignmentPlan[assignmentUsers[0]];
+    }
+
+    // 🔥 STEP 2: build lead payloads with assignedTo already set
+    const leadsPayload = rows.map(row => {
+      let assignedTo = null;
+
+      if (assignmentPlan) {
+        if (currentUserRemaining === 0) {
+          currentUserIndex++;
+          currentUserRemaining =
+            assignmentPlan[assignmentUsers[currentUserIndex]];
+        }
+
+        assignedTo = Number(assignmentUsers[currentUserIndex]);
+        currentUserRemaining--;
+      }
+
+      return buildLeadPayload(
+        row,
+        mapping,
+        user.id,
+        uploadId,
+        assignedTo
+      );
+    });
+
+    // 🔥 STEP 3: insert leads
+    await Lead.bulkCreate(leadsPayload);
+
+    // update upload status
     await upload.update({ status: "COMPLETED" });
-    return { statusCode: statusCode.OK, success: true, inserted: leads.length };
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      inserted: leadsPayload.length,
+      assigned: !!assignmentPlan
+    };
   } catch (error) {
-    return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message
+    };
   }
 };
 
