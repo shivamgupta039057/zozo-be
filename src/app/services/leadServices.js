@@ -1,5 +1,5 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField ,Sequelize} = require("../../pgModels");
+const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField, Sequelize } = require("../../pgModels");
 const { Op } = require("sequelize");
 
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
@@ -7,7 +7,7 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { parseExcel, buildLeadPayload,buildAssignmentPlan } = require("../../utils/leadBulkInsert");
+const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -797,7 +797,7 @@ exports.bulkAssignLeads = async (body) => {
 // Bulk Lead Upload Step 1: Upload File
 exports.uploadFile = async (body, user) => {
   try {
- 
+
     const upload = await BulkLeadUpload.create({
       file_name: body.originalname,
       file_path: body.path,
@@ -809,14 +809,14 @@ exports.uploadFile = async (body, user) => {
       statusCode: statusCode.OK,
       success: true,
       uploadId: upload.id,
-      filename : body.originalname
+      filename: body.originalname
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
       message: error.message,
-      
+
     };
   }
 };
@@ -848,7 +848,7 @@ exports.getSheets = async (uploadId) => {
 };
 
 // Step 3: Validate Mapping
-exports.validateMapping = async ({valmapping , uploadId, sheet, mapping }) => {
+exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
   try {
     if (!valmapping.whatsapp_number)
       return { statusCode: statusCode.BAD_REQUEST, success: false, message: "WhatsApp is required" };
@@ -867,7 +867,7 @@ exports.validateMapping = async ({valmapping , uploadId, sheet, mapping }) => {
       where: { whatsapp_number: { [Op.in]: numbers } },
       attributes: ["whatsapp_number"]
     });
-    return { statusCode: statusCode.OK, success: true , duplicates};
+    return { statusCode: statusCode.OK, success: true, duplicates };
   } catch (error) {
     return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
   }
@@ -909,6 +909,7 @@ exports.checkDuplicates = async ({ uploadId, sheet, mapping }) => {
 exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
+    const status = await LeadStatus.findOne({ where: { is_default: true } });
     if (!upload) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -946,7 +947,7 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
     // 🔥 STEP 2: build lead payloads with assignedTo already set
     const leadsPayload = rows.map(row => {
       let assignedTo = null;
-
+      const status_id = status ? status.id : null;
       if (assignmentPlan) {
         if (currentUserRemaining === 0) {
           currentUserIndex++;
@@ -963,7 +964,8 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
         mapping,
         user.id,
         uploadId,
-        assignedTo
+        assignedTo,
+        status_id
       );
     });
 
