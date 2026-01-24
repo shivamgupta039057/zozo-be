@@ -70,12 +70,16 @@ exports.buildLeadPayload = (
   mapping,
   createdBy,
   uploadId,
-  assignedTo
+  assignedTo,
+  status_id,
+  source = "excel"
 ) => {
   const payload = {
     created_by: createdBy,
     upload_id: uploadId,
     assignedTo: assignedTo || null,
+    status_id: status_id || null,
+    source: source || null,
     data: {}
   };
 

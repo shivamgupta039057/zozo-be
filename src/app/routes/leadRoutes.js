@@ -19,7 +19,7 @@ router.post('/lead-bulk-upload', auth, upload.single('file'), uploadFile, respon
 router.get('/stage-status-structure', auth, responseHandler(controller.getStageStatusStructure));
 
 router.post('/bulk-assign', auth, responseHandler(controller.bulkAssignLeads));
-
+router.get("/getlead/:id", auth,responseHandler(controller.getleadbyId));
 // File upload routes
 router.post("/upload",auth, upload.single("file"), uploadFile,responseHandler(controller.uploadFile));
 router.get("/uploads", auth,responseHandler(controller.getUploadedFiles));

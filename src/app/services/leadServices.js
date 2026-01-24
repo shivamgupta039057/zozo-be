@@ -1,5 +1,5 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField ,Sequelize} = require("../../pgModels");
+const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField, Sequelize } = require("../../pgModels");
 const { Op } = require("sequelize");
 
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
@@ -7,7 +7,7 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { parseExcel, buildLeadPayload,buildAssignmentPlan } = require("../../utils/leadBulkInsert");
+const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -20,7 +20,22 @@ exports.addLead = async (body, user) => {
   console.log("sdssadsasdsbodybodybodybody", body);
 
   try {
-    const { data, source, assignedTo, notes, name, whatsapp_number } = body;
+    const { data, source, assignedTo, notes, name, email , whatsapp_number } = body;
+
+
+    // Check if whatsapp_number already exists in the Lead model
+    if (whatsapp_number) {
+      const existingLead = await Lead.findOne({
+        where: { whatsapp_number: whatsapp_number }
+      });
+      if (existingLead) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: "Lead with this WhatsApp number already exists"
+        };
+      }
+    }
 
     const status = await LeadStatus.findOne({ where: { is_default: true } });
 
@@ -33,6 +48,7 @@ exports.addLead = async (body, user) => {
       status_id: status ? status.id : null,
       notes,
       name,
+      email,
       whatsapp_number,
       assignedTo: user?.id || null,
       created_by: user?.id || null,
@@ -226,6 +242,186 @@ exports.addLead = async (body, user) => {
 //   }
 // };
 
+
+exports.getAllLeads = async (query) => {
+  try {
+    // Example of query->    {
+    //   "statusIds": "1,3",
+    //   "assignees": "Shivam,Anuj",
+    //   "startDate": 1737456000000,
+    //   "endDate": 1738020000000,
+    //   "filters": [
+    //     { "field": "name", "operator": "contains", "value": "test" },
+    //     { "field": "leadRating", "operator": "in", "value": [4,5] }
+    //   ],
+    //   "page": 1,
+    //   "limit": 10
+    // }
+    const {
+      searchField,
+      searchText,
+      statusIds,
+      assignees,
+      startDate, // timestamp from frontend
+      endDate, // timestamp from frontend
+      filters = [], // dynamic filters
+      page = 1,
+      limit = 10,
+    } = query;
+
+    let whereClause = {};
+
+    // 1️⃣ SEARCH TEXT FIELD (KEEP)
+    if (searchField && searchText) {
+      whereClause = {
+        ...whereClause,
+        data: {
+          [Op.contains]: {
+            [searchField]: searchText,
+          },
+        },
+      };
+    }
+
+    // 2️⃣ STATUS FILTER (KEEP)
+    if (statusIds) {
+      const statusArray = statusIds.split(",").map(Number);
+      whereClause.status_id = { [Op.in]: statusArray };
+    }
+
+    // 3️⃣ ASSIGNEE FILTER (KEEP)
+    if (assignees) {
+      const assigneeArray = assignees.split(",");
+      whereClause.assignedTo = { [Op.in]: assigneeArray };
+    }
+
+    // 4️⃣ TIMESTAMP DATE FILTER
+    if (startDate && endDate) {
+      const start = new Date(Number(startDate));
+      const end = new Date(Number(endDate));
+      end.setHours(23, 59, 59, 999);
+      whereClause.createdAt = { [Op.between]: [start, end] };
+    }
+
+    // 5️⃣ DYNAMIC UI FILTERS
+    const operatorMap = {
+      equal: Op.eq,
+      not_equal: Op.ne,
+      contains: Op.substring,
+      not_contains: Op.notLike,
+      begins_with: Op.startsWith,
+      not_begins_with: Op.notILike,
+      in: Op.in,
+      not_in: Op.notIn,
+      between: Op.between,
+      is_empty: "IS_EMPTY",
+      is_not_empty: "IS_NOT_EMPTY",
+    };
+
+    filters.forEach((filter) => {
+      const { field, operator, value } = filter;
+      const sequelizeOperator = operatorMap[operator];
+      if (!sequelizeOperator) return;
+
+      if (sequelizeOperator === "IS_EMPTY") {
+        whereClause[field] = { [Op.or]: [null, ""] };
+      } else if (sequelizeOperator === "IS_NOT_EMPTY") {
+        whereClause[field] = { [Op.ne]: null };
+      } else if (sequelizeOperator === Op.between) {
+        whereClause[field] = {
+          [Op.between]: [
+            new Date(Number(value[0])),
+            new Date(Number(value[1])),
+          ],
+        };
+      } else if (Array.isArray(value)) {
+        whereClause[field] = { [sequelizeOperator]: value };
+      } else {
+        whereClause[field] = { [sequelizeOperator]: value };
+      }
+    });
+
+    // 6️⃣ PAGINATION LOGIC
+    const pageNumber = Number(page) || 1;
+    const pageSize = Number(limit) || 10;
+    const offset = (pageNumber - 1) * pageSize;
+
+    // 7️⃣ FINAL DB QUERY WITH PAGINATION
+    const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
+      where: whereClause,
+      attributes: {
+        exclude: ["stage_id", "reason_id", "created_by"],
+      },
+      include: [
+        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
+        {
+          model: UserModel,
+          as: "assignedUser",
+          attributes: ["id", "name", "email"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: pageSize,
+    });
+
+    return {
+      success: true,
+      message: leads.length ? "Leads fetched successfully" : "No data found",
+      data: leads,
+      pagination: {
+        total: totalCount,
+        page: pageNumber,
+        limit: pageSize,
+        totalPages: Math.ceil(totalCount / pageSize),
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+
+
+
+exports.getleadbyId = async (id) => {
+  try {
+    const lead = await Lead.findByPk(id, {
+      attributes: {
+        exclude: ["stage_id", "reason_id", "created_by"],
+      },
+      include: [
+        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
+        {
+          model: UserModel,
+          as: "assignedUser",
+          attributes: ["id", "name", "email"],
+        },
+      ],
+    });
+
+    if (!lead) {
+      return {
+        success: false,
+        message: "Lead not found",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Lead fetched successfully",
+      data: lead,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+};
 
 exports.getAllLeads = async (query) => {
   try {
@@ -797,7 +993,7 @@ exports.bulkAssignLeads = async (body) => {
 // Bulk Lead Upload Step 1: Upload File
 exports.uploadFile = async (body, user) => {
   try {
- 
+
     const upload = await BulkLeadUpload.create({
       file_name: body.originalname,
       file_path: body.path,
@@ -809,14 +1005,14 @@ exports.uploadFile = async (body, user) => {
       statusCode: statusCode.OK,
       success: true,
       uploadId: upload.id,
-      filename : body.originalname
+      filename: body.originalname
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
       message: error.message,
-      
+
     };
   }
 };
@@ -848,7 +1044,7 @@ exports.getSheets = async (uploadId) => {
 };
 
 // Step 3: Validate Mapping
-exports.validateMapping = async ({valmapping , uploadId, sheet, mapping }) => {
+exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
   try {
     if (!valmapping.whatsapp_number)
       return { statusCode: statusCode.BAD_REQUEST, success: false, message: "WhatsApp is required" };
@@ -867,7 +1063,7 @@ exports.validateMapping = async ({valmapping , uploadId, sheet, mapping }) => {
       where: { whatsapp_number: { [Op.in]: numbers } },
       attributes: ["whatsapp_number"]
     });
-    return { statusCode: statusCode.OK, success: true , duplicates};
+    return { statusCode: statusCode.OK, success: true, duplicates };
   } catch (error) {
     return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
   }
@@ -909,6 +1105,7 @@ exports.checkDuplicates = async ({ uploadId, sheet, mapping }) => {
 exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
+    const status = await LeadStatus.findOne({ where: { is_default: true } });
     if (!upload) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -946,7 +1143,8 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
     // 🔥 STEP 2: build lead payloads with assignedTo already set
     const leadsPayload = rows.map(row => {
       let assignedTo = null;
-
+      const status_id = status ? status.id : null;
+      
       if (assignmentPlan) {
         if (currentUserRemaining === 0) {
           currentUserIndex++;
@@ -963,7 +1161,9 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
         mapping,
         user.id,
         uploadId,
-        assignedTo
+        assignedTo,
+        status_id,
+        source = "excel"
       );
     });
 

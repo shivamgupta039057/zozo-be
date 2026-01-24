@@ -136,6 +136,19 @@ exports.getUploadedFiles = async ({ query }) => {
   }
 };
 
+exports.getleadbyId = async ({ params }) => {
+  try {
+   return await services.getleadbyId(params.id);
+
+  } catch (error) {
+    return {
+      statusCode: 500,
+      success: false,
+      message: error.message || 'Internal server error'
+    };
+  }
+};
+
 
 // Step 2: Get Sheets and Headers
 exports.getSheets = async ({ params }) => {

@@ -8,9 +8,9 @@ exports.leadValidation = Joi.object({
      name: Joi.string().trim().required(),
      upload_id : Joi.string().allow(null, "").optional(),
     whatsapp_number: Joi.string().trim().required(),
+    email : Joi.string().email().trim().required(),
   });
   
-
 // Joi validation schema for LeadField model
 exports.
 leadFieldValidation = Joi.object({
