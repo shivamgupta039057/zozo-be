@@ -1,6 +1,6 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField, Sequelize } = require("../../pgModels");
-const { Op } = require("sequelize");
+const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField } = require("../../pgModels");
+const { Op, Sequelize } = require("sequelize");
 
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
 const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
@@ -8,7 +8,7 @@ const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
 const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
-
+const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap } = require("../../utils/filerDynamic");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -20,7 +20,7 @@ exports.addLead = async (body, user) => {
   console.log("sdssadsasdsbodybodybodybody", body);
 
   try {
-    const { data, source, assignedTo, notes, name, email , whatsapp_number } = body;
+    const { data, source, assignedTo, notes, name, email, whatsapp_number } = body;
 
 
     // Check if whatsapp_number already exists in the Lead model
@@ -103,9 +103,15 @@ exports.addLead = async (body, user) => {
   }
 };
 
-// exports.getAllLeads = async (query) => {
+
+
+// exports.getAllLeads = async ({query,user}) => {
 //   try {
-//     // Eample of query->    {
+
+//     console.log("sjhhhhhhhhhhhhhhhhhhhh")
+//     console.log(user,"Sa")
+//     console.log("asdasd", query);
+//     // Example of query->    {
 //     //   "statusIds": "1,3",
 //     //   "assignees": "Shivam,Anuj",
 //     //   "startDate": 1737456000000,
@@ -113,7 +119,9 @@ exports.addLead = async (body, user) => {
 //     //   "filters": [
 //     //     { "field": "name", "operator": "contains", "value": "test" },
 //     //     { "field": "leadRating", "operator": "in", "value": [4,5] }
-//     //   ]
+//     //   ],
+//     //   "page": 1,
+//     //   "limit": 10
 //     // }
 //     const {
 //       searchField,
@@ -123,13 +131,13 @@ exports.addLead = async (body, user) => {
 //       startDate, // timestamp from frontend
 //       endDate, // timestamp from frontend
 //       filters = [], // dynamic filters
+//       page = 1,
+//       limit = 10,
 //     } = query;
 
 //     let whereClause = {};
 
-//     // -----------------------------------------
 //     // 1️⃣ SEARCH TEXT FIELD (KEEP)
-//     // -----------------------------------------
 //     if (searchField && searchText) {
 //       whereClause = {
 //         ...whereClause,
@@ -141,38 +149,29 @@ exports.addLead = async (body, user) => {
 //       };
 //     }
 
-//     // -----------------------------------------
+//     console.log("whereClausewhereClausewhereClause", whereClause);
 //     // 2️⃣ STATUS FILTER (KEEP)
-//     // -----------------------------------------
 //     if (statusIds) {
 //       const statusArray = statusIds.split(",").map(Number);
+//       console.log("statusArraystatusArraystatusArray", statusArray);
 //       whereClause.status_id = { [Op.in]: statusArray };
 //     }
 
-//     // -----------------------------------------
 //     // 3️⃣ ASSIGNEE FILTER (KEEP)
-//     // -----------------------------------------
 //     if (assignees) {
 //       const assigneeArray = assignees.split(",");
 //       whereClause.assignedTo = { [Op.in]: assigneeArray };
 //     }
 
-//     // -----------------------------------------
 //     // 4️⃣ TIMESTAMP DATE FILTER
-//     // -----------------------------------------
 //     if (startDate && endDate) {
 //       const start = new Date(Number(startDate));
 //       const end = new Date(Number(endDate));
-
-//       // Ensure end covers the full day
 //       end.setHours(23, 59, 59, 999);
-
 //       whereClause.createdAt = { [Op.between]: [start, end] };
 //     }
 
-//     // -----------------------------------------
 //     // 5️⃣ DYNAMIC UI FILTERS
-//     // -----------------------------------------
 //     const operatorMap = {
 //       equal: Op.eq,
 //       not_equal: Op.ne,
@@ -210,10 +209,13 @@ exports.addLead = async (body, user) => {
 //       }
 //     });
 
-//     // -----------------------------------------
-//     // 6️⃣ FINAL DB QUERY
-//     // -----------------------------------------
-//     const leads = await Lead.findAll({
+//     // 6️⃣ PAGINATION LOGIC
+//     const pageNumber = Number(page) || 1;
+//     const pageSize = Number(limit) || 10;
+//     const offset = (pageNumber - 1) * pageSize;
+
+//     // 7️⃣ FINAL DB QUERY WITH PAGINATION
+//     const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
 //       where: whereClause,
 //       attributes: {
 //         exclude: ["stage_id", "reason_id", "created_by"],
@@ -227,12 +229,20 @@ exports.addLead = async (body, user) => {
 //         },
 //       ],
 //       order: [["createdAt", "DESC"]],
+//       offset,
+//       limit: pageSize,
 //     });
 
 //     return {
 //       success: true,
 //       message: leads.length ? "Leads fetched successfully" : "No data found",
 //       data: leads,
+//       pagination: {
+//         total: totalCount,
+//         page: pageNumber,
+//         limit: pageSize,
+//         totalPages: Math.ceil(totalCount / pageSize),
+//       },
 //     };
 //   } catch (error) {
 //     return {
@@ -241,151 +251,6 @@ exports.addLead = async (body, user) => {
 //     };
 //   }
 // };
-
-
-exports.getAllLeads = async (query) => {
-  try {
-    // Example of query->    {
-    //   "statusIds": "1,3",
-    //   "assignees": "Shivam,Anuj",
-    //   "startDate": 1737456000000,
-    //   "endDate": 1738020000000,
-    //   "filters": [
-    //     { "field": "name", "operator": "contains", "value": "test" },
-    //     { "field": "leadRating", "operator": "in", "value": [4,5] }
-    //   ],
-    //   "page": 1,
-    //   "limit": 10
-    // }
-    const {
-      searchField,
-      searchText,
-      statusIds,
-      assignees,
-      startDate, // timestamp from frontend
-      endDate, // timestamp from frontend
-      filters = [], // dynamic filters
-      page = 1,
-      limit = 10,
-    } = query;
-
-    let whereClause = {};
-
-    // 1️⃣ SEARCH TEXT FIELD (KEEP)
-    if (searchField && searchText) {
-      whereClause = {
-        ...whereClause,
-        data: {
-          [Op.contains]: {
-            [searchField]: searchText,
-          },
-        },
-      };
-    }
-
-    // 2️⃣ STATUS FILTER (KEEP)
-    if (statusIds) {
-      const statusArray = statusIds.split(",").map(Number);
-      whereClause.status_id = { [Op.in]: statusArray };
-    }
-
-    // 3️⃣ ASSIGNEE FILTER (KEEP)
-    if (assignees) {
-      const assigneeArray = assignees.split(",");
-      whereClause.assignedTo = { [Op.in]: assigneeArray };
-    }
-
-    // 4️⃣ TIMESTAMP DATE FILTER
-    if (startDate && endDate) {
-      const start = new Date(Number(startDate));
-      const end = new Date(Number(endDate));
-      end.setHours(23, 59, 59, 999);
-      whereClause.createdAt = { [Op.between]: [start, end] };
-    }
-
-    // 5️⃣ DYNAMIC UI FILTERS
-    const operatorMap = {
-      equal: Op.eq,
-      not_equal: Op.ne,
-      contains: Op.substring,
-      not_contains: Op.notLike,
-      begins_with: Op.startsWith,
-      not_begins_with: Op.notILike,
-      in: Op.in,
-      not_in: Op.notIn,
-      between: Op.between,
-      is_empty: "IS_EMPTY",
-      is_not_empty: "IS_NOT_EMPTY",
-    };
-
-    filters.forEach((filter) => {
-      const { field, operator, value } = filter;
-      const sequelizeOperator = operatorMap[operator];
-      if (!sequelizeOperator) return;
-
-      if (sequelizeOperator === "IS_EMPTY") {
-        whereClause[field] = { [Op.or]: [null, ""] };
-      } else if (sequelizeOperator === "IS_NOT_EMPTY") {
-        whereClause[field] = { [Op.ne]: null };
-      } else if (sequelizeOperator === Op.between) {
-        whereClause[field] = {
-          [Op.between]: [
-            new Date(Number(value[0])),
-            new Date(Number(value[1])),
-          ],
-        };
-      } else if (Array.isArray(value)) {
-        whereClause[field] = { [sequelizeOperator]: value };
-      } else {
-        whereClause[field] = { [sequelizeOperator]: value };
-      }
-    });
-
-    // 6️⃣ PAGINATION LOGIC
-    const pageNumber = Number(page) || 1;
-    const pageSize = Number(limit) || 10;
-    const offset = (pageNumber - 1) * pageSize;
-
-    // 7️⃣ FINAL DB QUERY WITH PAGINATION
-    const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
-      where: whereClause,
-      attributes: {
-        exclude: ["stage_id", "reason_id", "created_by"],
-      },
-      include: [
-        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
-        {
-          model: UserModel,
-          as: "assignedUser",
-          attributes: ["id", "name", "email"],
-        },
-      ],
-      order: [["createdAt", "DESC"]],
-      offset,
-      limit: pageSize,
-    });
-
-    return {
-      success: true,
-      message: leads.length ? "Leads fetched successfully" : "No data found",
-      data: leads,
-      pagination: {
-        total: totalCount,
-        page: pageNumber,
-        limit: pageSize,
-        totalPages: Math.ceil(totalCount / pageSize),
-      },
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message,
-    };
-  }
-};
-
-
-
 
 exports.getleadbyId = async (id) => {
   try {
@@ -423,117 +288,234 @@ exports.getleadbyId = async (id) => {
   }
 };
 
-exports.getAllLeads = async (query) => {
+
+exports.getAllLeads = async ({ query, body }) => {
   try {
-    // Example of query->    {
-    //   "statusIds": "1,3",
-    //   "assignees": "Shivam,Anuj",
-    //   "startDate": 1737456000000,
-    //   "endDate": 1738020000000,
-    //   "filters": [
-    //     { "field": "name", "operator": "contains", "value": "test" },
-    //     { "field": "leadRating", "operator": "in", "value": [4,5] }
-    //   ],
-    //   "page": 1,
-    //   "limit": 10
-    // }
     const {
       searchField,
       searchText,
+      filters = [],
       statusIds,
       assignees,
-      startDate, // timestamp from frontend
-      endDate, // timestamp from frontend
-      filters = [], // dynamic filters
+      startDate, // DD-MM-YYYY
+      endDate,   // DD-MM-YYYY
       page = 1,
       limit = 10,
-    } = query;
+    } = body;
 
-    let whereClause = {};
+    const whereClause = {};
+    const andConditions = [];
 
-    // 1️⃣ SEARCH TEXT FIELD (KEEP)
+    /* ==================================================
+       1️⃣ TOP SEARCH BAR (SEARCH_FIELD_MAP)
+    ================================================== */
     if (searchField && searchText) {
-      whereClause = {
-        ...whereClause,
-        data: {
-          [Op.contains]: {
-            [searchField]: searchText,
+      const fieldConfig = SEARCH_FIELD_MAP[searchField];
+
+      if (fieldConfig?.type === "fixed") {
+        andConditions.push({
+          [fieldConfig.column]: {
+            [Op.iLike]: `%${searchText}%`,
           },
-        },
-      };
+        });
+      }
+
+      if (fieldConfig?.type === "jsonb") {
+        andConditions.push(
+          Sequelize.where(
+            Sequelize.cast(
+              Sequelize.json(`data.${fieldConfig.column}`),
+              "text"
+            ),
+            {
+              [Op.iLike]: `%${searchText}%`,
+            }
+          )
+        );
+      }
     }
 
-    // 2️⃣ STATUS FILTER (KEEP)
+    /* ==================================================
+       2️⃣ STATUS FILTER (SIMPLE)
+    ================================================== */
     if (statusIds) {
-      const statusArray = statusIds.split(",").map(Number);
-      whereClause.status_id = { [Op.in]: statusArray };
+      andConditions.push({
+        status_id: {
+          [Op.in]: statusIds.split(",").map(Number),
+        },
+      });
     }
 
-    // 3️⃣ ASSIGNEE FILTER (KEEP)
+    /* ==================================================
+       3️⃣ ASSIGNEE FILTER
+    ================================================== */
     if (assignees) {
-      const assigneeArray = assignees.split(",");
-      whereClause.assignedTo = { [Op.in]: assigneeArray };
+      andConditions.push({
+        assignedTo: {
+          [Op.in]: assignees.split(",").map(Number),
+        },
+      });
     }
 
-    // 4️⃣ TIMESTAMP DATE FILTER
+    /* ==================================================
+       4️⃣ DATE FILTER (DIRECT DB MATCH – NO HELPER)
+       DD-MM-YYYY → PostgreSQL DATE()
+    ================================================== */
     if (startDate && endDate) {
-      const start = new Date(Number(startDate));
-      const end = new Date(Number(endDate));
-      end.setHours(23, 59, 59, 999);
-      whereClause.createdAt = { [Op.between]: [start, end] };
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.fn("DATE", Sequelize.col("Lead.createdAt")),
+          {
+            [Op.between]: [
+              Sequelize.literal(`TO_DATE('${startDate}', 'DD-MM-YYYY')`),
+              Sequelize.literal(`TO_DATE('${endDate}', 'DD-MM-YYYY')`),
+            ],
+          }
+        )
+      );
     }
 
-    // 5️⃣ DYNAMIC UI FILTERS
-    const operatorMap = {
-      equal: Op.eq,
-      not_equal: Op.ne,
-      contains: Op.substring,
-      not_contains: Op.notLike,
-      begins_with: Op.startsWith,
-      not_begins_with: Op.notILike,
-      in: Op.in,
-      not_in: Op.notIn,
-      between: Op.between,
-      is_empty: "IS_EMPTY",
-      is_not_empty: "IS_NOT_EMPTY",
-    };
+    /* ==================================================
+       5️⃣ DYNAMIC FILTER BUILDER (ANY FIELD)
+    ================================================== */
+    filters.forEach(({ field, operator, value }) => {
+      const sequelizeOp = operatorMap[operator];
+      if (!sequelizeOp) return;
+      const isFixed = FIXED_FIELDS.includes(field);
 
-    filters.forEach((filter) => {
-      const { field, operator, value } = filter;
-      const sequelizeOperator = operatorMap[operator];
-      if (!sequelizeOperator) return;
+      // EMPTY
+      if (sequelizeOp === "IS_EMPTY") {
+        if (isFixed) {
+          andConditions.push({
+            [Op.or]: [{ [field]: null }, { [field]: "" }],
+          });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
+              ""
+            )
+          );
+        }
+        return;
+      }
 
-      if (sequelizeOperator === "IS_EMPTY") {
-        whereClause[field] = { [Op.or]: [null, ""] };
-      } else if (sequelizeOperator === "IS_NOT_EMPTY") {
-        whereClause[field] = { [Op.ne]: null };
-      } else if (sequelizeOperator === Op.between) {
-        whereClause[field] = {
-          [Op.between]: [
-            new Date(Number(value[0])),
-            new Date(Number(value[1])),
-          ],
-        };
-      } else if (Array.isArray(value)) {
-        whereClause[field] = { [sequelizeOperator]: value };
+      // NOT EMPTY
+      if (sequelizeOp === "IS_NOT_EMPTY") {
+        if (isFixed) {
+          andConditions.push({ [field]: { [Op.ne]: null } });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [Op.ne]: null }
+            )
+          );
+        }
+        return;
+      }
+
+      // BETWEEN (NON-DATE)
+      // BETWEEN
+      if (sequelizeOp === Op.between && Array.isArray(value)) {
+
+        // ✅ DATE FIELD FIX (createdAt / updatedAt)
+        if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
+          const [start, end] = value;
+
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
+              {
+                [Op.between]: [
+                  Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
+                  Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
+                ],
+              }
+            )
+          );
+          return;
+        }
+
+        // ✅ NORMAL BETWEEN (numbers, strings)
+        if (isFixed) {
+          andConditions.push({
+            [field]: { [Op.between]: value },
+          });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [Op.between]: value }
+            )
+          );
+        }
+        return;
+      }
+
+
+      // IN / NOT IN
+      if (Array.isArray(value)) {
+        if (isFixed) {
+          andConditions.push({
+            [field]: { [sequelizeOp]: value },
+          });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [sequelizeOp]: value }
+            )
+          );
+        }
+        return;
+      }
+
+      // NORMAL STRING / NUMBER
+      if (isFixed) {
+        andConditions.push({
+          [field]:
+            operator === "contains"
+              ? { [Op.iLike]: `%${value}%` }
+              : { [sequelizeOp]: value },
+        });
       } else {
-        whereClause[field] = { [sequelizeOperator]: value };
+        andConditions.push(
+          Sequelize.where(
+            Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
+            operator === "contains"
+              ? { [Op.iLike]: `%${value}%` }
+              : { [sequelizeOp]: value }
+          )
+        );
       }
     });
 
-    // 6️⃣ PAGINATION LOGIC
-    const pageNumber = Number(page) || 1;
-    const pageSize = Number(limit) || 10;
+    /* ==================================================
+       APPLY ALL CONDITIONS
+    ================================================== */
+    if (andConditions.length) {
+      whereClause[Op.and] = andConditions;
+    }
+
+    /* ==================================================
+       PAGINATION
+    ================================================== */
+    const pageNumber = Number(page);
+    const pageSize = Number(limit);
     const offset = (pageNumber - 1) * pageSize;
 
-    // 7️⃣ FINAL DB QUERY WITH PAGINATION
-    const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
+    /* ==================================================
+       FINAL QUERY
+    ================================================== */
+    const { rows, count } = await Lead.findAndCountAll({
       where: whereClause,
-      attributes: {
-        exclude: ["stage_id", "reason_id", "created_by"],
-      },
       include: [
-        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
+        {
+          model: LeadStatus,
+          as: "status",
+          attributes: ["id", "name", "color"],
+        },
         {
           model: UserModel,
           as: "assignedUser",
@@ -547,22 +529,24 @@ exports.getAllLeads = async (query) => {
 
     return {
       success: true,
-      message: leads.length ? "Leads fetched successfully" : "No data found",
-      data: leads,
+      message: rows.length ? "Leads fetched successfully" : "No data found",
+      data: rows,
       pagination: {
-        total: totalCount,
+        total: count,
         page: pageNumber,
         limit: pageSize,
-        totalPages: Math.ceil(totalCount / pageSize),
+        totalPages: Math.ceil(count / pageSize),
       },
     };
   } catch (error) {
+    console.error("LEAD FILTER ERROR:", error);
     return {
       success: false,
       message: error.message,
     };
   }
 };
+
 
 
 exports.changeStatus = async (body, params) => {
@@ -1144,7 +1128,7 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
     const leadsPayload = rows.map(row => {
       let assignedTo = null;
       const status_id = status ? status.id : null;
-      
+
       if (assignmentPlan) {
         if (currentUserRemaining === 0) {
           currentUserIndex++;

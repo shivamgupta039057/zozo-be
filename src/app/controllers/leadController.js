@@ -16,11 +16,12 @@ exports.createLead = async ({ body, user }) => {
   }
 };
 
-exports.generateLead = async ({ query }) => {
-  console.log("yyyyyyyyyyyyyyyyyyyyyyyyyyyyy" , query);
-  
+exports.generateLead = async ({ user,query,body }) => {
+  // console.log("useruseruseruseruser" , user);
+ 
+  // console.log("queryyyyyyyyyyyyyyyyyyyyyyy" , query);
   try {
-    return await services.getAllLeads(query);
+    return await services.getAllLeads({query,body});
   } catch (error) {
     console.log("errorerror" , error);
     
