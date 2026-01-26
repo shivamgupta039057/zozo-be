@@ -10,6 +10,7 @@ const menuList = [
   { name: 'Users', path: '/users', order: 7 , icon: 'Users',isHeaderMenu:true },
   { name: 'Lead Stages', path: '/lead-stages', order: 6,isHeaderMenu:true , icon: 'Funnel' },
   { name: 'Bulk Upload', path: '/bulk-import/add', order: 9 , icon: 'Funnel' },
+  { name: 'Workflow', path: '/workflow', order: 10 , icon: 'Funnel' },
   { name: 'Permission Templates', path: '/permission-templates', order: 8,isHeaderMenu:true , icon: 'Shield' },
 ];
 

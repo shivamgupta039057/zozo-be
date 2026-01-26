@@ -25,6 +25,10 @@ const Lead = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     source: {
       type: DataTypes.STRING,
       allowNull: true,

@@ -1,5 +1,5 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField ,Sequelize} = require("../../pgModels");
+const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField, Sequelize } = require("../../pgModels");
 const { Op } = require("sequelize");
 
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
@@ -7,7 +7,7 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { parseExcel, buildLeadPayload } = require("../../utils/leadBulkInsert");
+const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
 
 /**
  * Add or update dynamic home page services according to schema.
@@ -20,7 +20,22 @@ exports.addLead = async (body, user) => {
   console.log("sdssadsasdsbodybodybodybody", body);
 
   try {
-    const { data, source, assignedTo, notes, name, whatsapp_number } = body;
+    const { data, source, assignedTo, notes, name, email , whatsapp_number } = body;
+
+
+    // Check if whatsapp_number already exists in the Lead model
+    if (whatsapp_number) {
+      const existingLead = await Lead.findOne({
+        where: { whatsapp_number: whatsapp_number }
+      });
+      if (existingLead) {
+        return {
+          statusCode: statusCode.BAD_REQUEST,
+          success: false,
+          message: "Lead with this WhatsApp number already exists"
+        };
+      }
+    }
 
     const status = await LeadStatus.findOne({ where: { is_default: true } });
 
@@ -33,6 +48,7 @@ exports.addLead = async (body, user) => {
       status_id: status ? status.id : null,
       notes,
       name,
+      email,
       whatsapp_number,
       assignedTo: user?.id || null,
       created_by: user?.id || null,
@@ -226,6 +242,205 @@ exports.addLead = async (body, user) => {
 //   }
 // };
 
+
+exports.getAllLeads = async (query) => {
+  try {
+    // Example of query->    {
+    //   "statusIds": "1,3",
+    //   "assignees": "Shivam,Anuj",
+    // leadName : "shivam",
+    //   "startDate": 1737456000000,
+    //   "endDate": 1738020000000,
+    //   "filters": [
+    //     { "field": "name", "operator": "contains", "value": "test" },
+    //     { "field": "leadRating", "operator": "in", "value": [4,5] }
+    //   ],
+    //   "page": 1,
+    //   "limit": 10
+    // }
+    const {
+      searchField,
+      searchText,
+      statusIds,
+      assignees,
+      leadName,
+      leadWhtsMobilenumber,
+      startDate, // timestamp from frontend
+      endDate, // timestamp from frontend
+      filters = [], // dynamic filters
+      page = 1,
+      limit = 10,
+    } = query;
+
+    let whereClause = {};
+
+    // 1️⃣ SEARCH TEXT FIELD (KEEP)
+    if (searchField && searchText) {
+      whereClause = {
+        ...whereClause,
+        data: {
+          [Op.contains]: {
+            [searchField]: searchText,
+          },
+        },
+      };
+    }
+
+    // Add filter for leadName and leadWhtsMobilenumber if provided
+    if (leadName) {
+      // Filter on "name" field at root OR in "data" column's name key (Postgres JSONB)
+      whereClause = {
+        ...whereClause,
+        name: { [Op.iLike]: `%${leadName}%` },
+      };
+    }
+    if (leadWhtsMobilenumber) {
+      // Filter on "whatsapp_number" at root OR inside "data" column's whatsapp_number
+      whereClause = {
+        ...whereClause,
+        whatsapp_number: { [Op.iLike]: `%${leadWhtsMobilenumber}%` },
+      };
+    }
+
+    // 2️⃣ STATUS FILTER (KEEP)
+    if (statusIds) {
+      const statusArray = statusIds.split(",").map(Number);
+      whereClause.status_id = { [Op.in]: statusArray };
+    }
+
+    // 3️⃣ ASSIGNEE FILTER (KEEP)
+    if (assignees) {
+      const assigneeArray = assignees.split(",");
+      whereClause.assignedTo = { [Op.in]: assigneeArray };
+    }
+
+    // 4️⃣ TIMESTAMP DATE FILTER
+    if (startDate && endDate) {
+      const start = new Date(Number(startDate));
+      const end = new Date(Number(endDate));
+      end.setHours(23, 59, 59, 999);
+      whereClause.createdAt = { [Op.between]: [start, end] };
+    }
+
+    // 5️⃣ DYNAMIC UI FILTERS
+    const operatorMap = {
+      equal: Op.eq,
+      not_equal: Op.ne,
+      contains: Op.substring,
+      not_contains: Op.notLike,
+      begins_with: Op.startsWith,
+      not_begins_with: Op.notILike,
+      in: Op.in,
+      not_in: Op.notIn,
+      between: Op.between,
+      is_empty: "IS_EMPTY",
+      is_not_empty: "IS_NOT_EMPTY",
+    };
+
+    filters.forEach((filter) => {
+      const { field, operator, value } = filter;
+      const sequelizeOperator = operatorMap[operator];
+      if (!sequelizeOperator) return;
+
+      if (sequelizeOperator === "IS_EMPTY") {
+        whereClause[field] = { [Op.or]: [null, ""] };
+      } else if (sequelizeOperator === "IS_NOT_EMPTY") {
+        whereClause[field] = { [Op.ne]: null };
+      } else if (sequelizeOperator === Op.between) {
+        whereClause[field] = {
+          [Op.between]: [
+            new Date(Number(value[0])),
+            new Date(Number(value[1])),
+          ],
+        };
+      } else if (Array.isArray(value)) {
+        whereClause[field] = { [sequelizeOperator]: value };
+      } else {
+        whereClause[field] = { [sequelizeOperator]: value };
+      }
+    });
+
+    // 6️⃣ PAGINATION LOGIC
+    const pageNumber = Number(page) || 1;
+    const pageSize = Number(limit) || 10;
+    const offset = (pageNumber - 1) * pageSize;
+
+    // 7️⃣ FINAL DB QUERY WITH PAGINATION
+    const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
+      where: whereClause,
+      attributes: {
+        exclude: ["stage_id", "reason_id", "created_by"],
+      },
+      include: [
+        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
+        {
+          model: UserModel,
+          as: "assignedUser",
+          attributes: ["id", "name", "email"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: pageSize,
+    });
+
+    return {
+      success: true,
+      message: leads.length ? "Leads fetched successfully" : "No data found",
+      data: leads,
+      pagination: {
+        total: totalCount,
+        page: pageNumber,
+        limit: pageSize,
+        totalPages: Math.ceil(totalCount / pageSize),
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+
+
+
+exports.getleadbyId = async (id) => {
+  try {
+    const lead = await Lead.findByPk(id, {
+      attributes: {
+        exclude: ["stage_id", "reason_id", "created_by"],
+      },
+      include: [
+        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
+        {
+          model: UserModel,
+          as: "assignedUser",
+          attributes: ["id", "name", "email"],
+        },
+      ],
+    });
+
+    if (!lead) {
+      return {
+        success: false,
+        message: "Lead not found",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Lead fetched successfully",
+      data: lead,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+};
 
 exports.getAllLeads = async (query) => {
   try {
@@ -624,20 +839,119 @@ exports.getStageStatusStructure = async () => {
 };
 
 // Bulk assign leads to users by percentage
+// exports.bulkAssignLeads = async (body) => {
+//   // body: { leadIds: [1,2,3,4], userIds: [10,11], percentages: [60,40] }
+//   const { leadIds, userIds, percentages } = body;
+//   if (
+//     !Array.isArray(leadIds) ||
+//     !Array.isArray(userIds) ||
+//     !Array.isArray(percentages)
+//   ) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: "leadIds, userIds, and percentages must be arrays",
+//     };
+//   }
+//   if (userIds.length !== percentages.length) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: "userIds and percentages must have the same length",
+//     };
+//   }
+//   if (percentages.reduce((a, b) => a + b, 0) !== 100) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: "Percentages must sum to 100",
+//     };
+//   }
+//   // Calculate how many leads per user
+//   const totalLeads = leadIds.length;
+//   console.log("Total leads to assign:", totalLeads);
+//   let counts = percentages.map((p) => Math.floor((p / 100) * totalLeads));
+//   // Distribute any remainder
+//   let assigned = counts.reduce((a, b) => a + b, 0);
+//   console.log("Initial assigned leads:", assigned);
+//   let remainder = totalLeads - assigned;
+
+//   console.log("Initial counts:", counts, "Remainder:", remainder);
+//   for (let i = 0; remainder > 0 && i < counts.length; i++, remainder--) {
+//     counts[i]++;
+//   }
+//   // Assign leads
+//   let updates = [];
+//   let leadIndex = 0;
+//   const assignmentMap = {};
+//   for (let i = 0; i < userIds.length; i++) {
+//     assignmentMap[userIds[i]] = [];
+//     for (let j = 0; j < counts[i]; j++) {
+//       if (leadIndex < leadIds.length) {
+//         updates.push(
+//           Lead.update(
+//             { assignedTo: userIds[i] },
+//             { where: { id: leadIds[leadIndex] } }
+//           )
+//         );
+//         assignmentMap[userIds[i]].push(leadIds[leadIndex]);
+//         leadIndex++;
+//       }
+//     }
+//   }
+//   await Promise.all(updates);
+//   // Console output for assignment
+//   Object.entries(assignmentMap).forEach(([userId, leads]) => {
+//     console.log(
+//       `User ${userId} assigned leads: [${leads.join(", ")}] (Total: ${leads.length
+//       })`
+//     );
+//   });
+//   return {
+//     statusCode: statusCode.OK,
+//     success: true,
+//     message: "Leads assigned successfully",
+//     assignment: assignmentMap,
+//   };
+// };
+
 exports.bulkAssignLeads = async (body) => {
-  // body: { leadIds: [1,2,3,4], userIds: [10,11], percentages: [60,40] }
-  const { leadIds, userIds, percentages } = body;
-  if (
-    !Array.isArray(leadIds) ||
-    !Array.isArray(userIds) ||
-    !Array.isArray(percentages)
-  ) {
+  // body: { leadIds: [1,2,3,4], userIds: [10,11], percentages: [60,40] },statusId:1
+  // body may or may not have userIds and percentages for assignment
+  // if only statusId is provided, just update status for all leads
+  // if both assignment and statusId provided, do both
+  const { leadIds, userIds, percentages, statusId } = body;
+
+  if (!Array.isArray(leadIds) || leadIds.length === 0) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: "leadIds, userIds, and percentages must be arrays",
+      message: "leadIds must be a non-empty array",
     };
   }
+
+  const hasAssignment =
+    Array.isArray(userIds) &&
+    userIds.length > 0 &&
+    Array.isArray(percentages) &&
+    percentages.length > 0;
+
+  // ✅ CASE: only status update
+  if (!hasAssignment) {
+    if (statusId) {
+      await Lead.update({ status_id: statusId }, { where: { id: leadIds } });
+    }
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: statusId
+        ? "Leads status updated successfully"
+        : "No assignment or status change applied",
+    };
+  }
+
+  // assignment validation
   if (userIds.length !== percentages.length) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -645,6 +959,7 @@ exports.bulkAssignLeads = async (body) => {
       message: "userIds and percentages must have the same length",
     };
   }
+
   if (percentages.reduce((a, b) => a + b, 0) !== 100) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -652,51 +967,43 @@ exports.bulkAssignLeads = async (body) => {
       message: "Percentages must sum to 100",
     };
   }
-  // Calculate how many leads per user
+
   const totalLeads = leadIds.length;
-  console.log("Total leads to assign:", totalLeads);
-  let counts = percentages.map((p) => Math.floor((p / 100) * totalLeads));
-  // Distribute any remainder
+
+  let counts = percentages.map(p =>
+    Math.floor((p / 100) * totalLeads)
+  );
+
   let assigned = counts.reduce((a, b) => a + b, 0);
-  console.log("Initial assigned leads:", assigned);
   let remainder = totalLeads - assigned;
 
-  console.log("Initial counts:", counts, "Remainder:", remainder);
-  for (let i = 0; remainder > 0 && i < counts.length; i++, remainder--) {
+  for (let i = 0; remainder > 0; i++, remainder--) {
     counts[i]++;
   }
-  // Assign leads
-  let updates = [];
+
   let leadIndex = 0;
-  const assignmentMap = {};
+  const updates = [];
+
   for (let i = 0; i < userIds.length; i++) {
-    assignmentMap[userIds[i]] = [];
     for (let j = 0; j < counts[i]; j++) {
-      if (leadIndex < leadIds.length) {
-        updates.push(
-          Lead.update(
-            { assignedTo: userIds[i] },
-            { where: { id: leadIds[leadIndex] } }
-          )
-        );
-        assignmentMap[userIds[i]].push(leadIds[leadIndex]);
-        leadIndex++;
-      }
+      updates.push(
+        Lead.update(
+          {
+            assignedTo: userIds[i],
+            ...(statusId ? { status_id: statusId } : {})
+          },
+          { where: { id: leadIds[leadIndex++] } }
+        )
+      );
     }
   }
+
   await Promise.all(updates);
-  // Console output for assignment
-  Object.entries(assignmentMap).forEach(([userId, leads]) => {
-    console.log(
-      `User ${userId} assigned leads: [${leads.join(", ")}] (Total: ${leads.length
-      })`
-    );
-  });
+
   return {
     statusCode: statusCode.OK,
     success: true,
     message: "Leads assigned successfully",
-    assignment: assignmentMap,
   };
 };
 
@@ -705,26 +1012,26 @@ exports.bulkAssignLeads = async (body) => {
 // Bulk Lead Upload Step 1: Upload File
 exports.uploadFile = async (body, user) => {
   try {
- 
+
     const upload = await BulkLeadUpload.create({
       file_name: body.originalname,
       file_path: body.path,
       uploaded_by: user.id
     });
-    console.log("Upload record created:", upload.id);
+    // console.log("Upload record created:", upload.id);
     return {
       message: "File uploaded successfully",
       statusCode: statusCode.OK,
       success: true,
       uploadId: upload.id,
-      filename : body.originalname
+      filename: body.originalname
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
       message: error.message,
-      
+
     };
   }
 };
@@ -733,6 +1040,7 @@ exports.uploadFile = async (body, user) => {
 exports.getSheets = async (uploadId) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
+    console.log("Fetched upload record:", upload);
     const wb = XLSX.readFile(upload.file_path);
     const sheet = wb.SheetNames[0];
     const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1 })[0];
@@ -755,7 +1063,7 @@ exports.getSheets = async (uploadId) => {
 };
 
 // Step 3: Validate Mapping
-exports.validateMapping = async ({valmapping , uploadId, sheet, mapping }) => {
+exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
   try {
     if (!valmapping.whatsapp_number)
       return { statusCode: statusCode.BAD_REQUEST, success: false, message: "WhatsApp is required" };
@@ -774,7 +1082,7 @@ exports.validateMapping = async ({valmapping , uploadId, sheet, mapping }) => {
       where: { whatsapp_number: { [Op.in]: numbers } },
       attributes: ["whatsapp_number"]
     });
-    return { statusCode: statusCode.OK, success: true , duplicates};
+    return { statusCode: statusCode.OK, success: true, duplicates };
   } catch (error) {
     return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
   }
@@ -797,18 +1105,105 @@ exports.checkDuplicates = async ({ uploadId, sheet, mapping }) => {
 };
 
 // Step 5: Commit Import
-exports.commitImport = async ({ uploadId, sheet, mapping, user }) => {
+// exports.commitImport = async ({ uploadId, sheet, mapping, user }) => {
+//   try {
+//     const upload = await BulkLeadUpload.findByPk(uploadId);
+//     const rows = parseExcel(upload.file_path, sheet);
+//     const leads = rows.map(row =>
+//       buildLeadPayload(row, mapping, user.id, uploadId)
+//     );
+//     await Lead.bulkCreate(leads);
+//     await upload.update({ status: "COMPLETED" });
+//     return { statusCode: statusCode.OK, success: true, inserted: leads.length };
+//   } catch (error) {
+//     return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+//   }
+// };
+
+
+exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
+    const status = await LeadStatus.findOne({ where: { is_default: true } });
+    if (!upload) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "Upload not found"
+      };
+    }
+
     const rows = parseExcel(upload.file_path, sheet);
-    const leads = rows.map(row =>
-      buildLeadPayload(row, mapping, user.id, uploadId)
-    );
-    await Lead.bulkCreate(leads);
+    if (!rows.length) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "No rows found in excel"
+      };
+    }
+
+    // 🔥 STEP 1: build assignment PLAN (before lead create)
+    let assignmentPlan = null;
+    let assignmentUsers = [];
+    let currentUserIndex = 0;
+    let currentUserRemaining = 0;
+
+    if (assignment?.userIds?.length) {
+      assignmentPlan = buildAssignmentPlan({
+        total: rows.length,
+        userIds: assignment.userIds,
+        percentages: assignment.percentages
+      });
+
+      assignmentUsers = Object.keys(assignmentPlan);
+      currentUserRemaining = assignmentPlan[assignmentUsers[0]];
+    }
+
+    // 🔥 STEP 2: build lead payloads with assignedTo already set
+    const leadsPayload = rows.map(row => {
+      let assignedTo = null;
+      const status_id = status ? status.id : null;
+      
+      if (assignmentPlan) {
+        if (currentUserRemaining === 0) {
+          currentUserIndex++;
+          currentUserRemaining =
+            assignmentPlan[assignmentUsers[currentUserIndex]];
+        }
+
+        assignedTo = Number(assignmentUsers[currentUserIndex]);
+        currentUserRemaining--;
+      }
+
+      return buildLeadPayload(
+        row,
+        mapping,
+        user.id,
+        uploadId,
+        assignedTo,
+        status_id,
+        source = "excel"
+      );
+    });
+
+    // 🔥 STEP 3: insert leads
+    await Lead.bulkCreate(leadsPayload);
+
+    // update upload status
     await upload.update({ status: "COMPLETED" });
-    return { statusCode: statusCode.OK, success: true, inserted: leads.length };
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      inserted: leadsPayload.length,
+      assigned: !!assignmentPlan
+    };
   } catch (error) {
-    return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message
+    };
   }
 };
 
