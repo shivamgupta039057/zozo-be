@@ -110,7 +110,6 @@ exports.updateLeadFieldServices = async (params, body) => {
       const fieldKey = body && typeof body === 'object' ? Object.keys(body)[0] : undefined;
       const fieldvalue = body && typeof body === 'object' ? Object.values(body)[0] : undefined;
 
-
      const leadFieldData = await LeadField.findOne({ where: { name: fieldKey } });
 
      if (!leadFieldData) {
@@ -120,11 +119,8 @@ exports.updateLeadFieldServices = async (params, body) => {
         message: "Lead field not found",
       };
     }
-
-
       console.log("hasNameKeyhasNameKeyhasNameKeyhasNameKey" , leadFieldData);
-      
-      
+     
       if (typeof OnLeadFieldChange === "function") {
         console.log("Calling OnLeadFieldChange function...");
         dataTemp = await OnLeadFieldChange(leadData, leadFieldData , fieldvalue);
@@ -135,18 +131,28 @@ exports.updateLeadFieldServices = async (params, body) => {
     console.log("dataTempdataTempdataTemp" , dataTemp);
 
     
+    const primaryFields = ["name", "whatsapp_number", "email"];
     const currentData = (leadData.dataValues && leadData.dataValues.data) ? { ...leadData.dataValues.data } : {};
-
-    // Find the key in body that should update the data object (single key assumed)
     const updateKey = body && typeof body === 'object' ? Object.keys(body)[0] : undefined;
-    if (updateKey && Object.prototype.hasOwnProperty.call(currentData, updateKey)) {
-      // Update value in data if key matches
-      currentData[updateKey] = body[updateKey];
+    console.log("updateKeyupdateKeyupdateKey" , updateKey);
+
+    let updatePayload = {};
+
+    if (updateKey) {
+      if (primaryFields.includes(updateKey)) {
+        // Update at the root level (not in data)
+        updatePayload[updateKey] = body[updateKey];
+      } else {
+        // Update in the data object
+        currentData[updateKey] = body[updateKey];
+        updatePayload.data = currentData;
+      }
     }
-  console.log("currentDatacurrentDatacurrentData" , currentData);
-  
-     const updateResult = await Lead.update(
-      { data: currentData },
+
+    console.log("updatePayloadupdatePayloadupdatePayload", updatePayload);
+
+    const updateResult = await Lead.update(
+      updatePayload,
       { where: { id: leadId } }
     );
 

@@ -248,6 +248,7 @@ exports.getAllLeads = async (query) => {
     // Example of query->    {
     //   "statusIds": "1,3",
     //   "assignees": "Shivam,Anuj",
+    // leadName : "shivam",
     //   "startDate": 1737456000000,
     //   "endDate": 1738020000000,
     //   "filters": [
@@ -262,6 +263,8 @@ exports.getAllLeads = async (query) => {
       searchText,
       statusIds,
       assignees,
+      leadName,
+      leadWhtsMobilenumber,
       startDate, // timestamp from frontend
       endDate, // timestamp from frontend
       filters = [], // dynamic filters
@@ -280,6 +283,22 @@ exports.getAllLeads = async (query) => {
             [searchField]: searchText,
           },
         },
+      };
+    }
+
+    // Add filter for leadName and leadWhtsMobilenumber if provided
+    if (leadName) {
+      // Filter on "name" field at root OR in "data" column's name key (Postgres JSONB)
+      whereClause = {
+        ...whereClause,
+        name: { [Op.iLike]: `%${leadName}%` },
+      };
+    }
+    if (leadWhtsMobilenumber) {
+      // Filter on "whatsapp_number" at root OR inside "data" column's whatsapp_number
+      whereClause = {
+        ...whereClause,
+        whatsapp_number: { [Op.iLike]: `%${leadWhtsMobilenumber}%` },
       };
     }
 
