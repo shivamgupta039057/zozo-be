@@ -155,6 +155,8 @@ exports.getUserList = async (query) => {
     // Fetch all users with associated role and permission template
     const { roleId } = query;
     const whereClause = roleId ? { roleId } : {};
+    console.log("whereClausewhereClausewhereClause" , whereClause);
+    
     const users = await UserModel.findAll({
       attributes: ["id", "name", "email", "phone", "createdAt", "updatedAt"],
       where: whereClause,
