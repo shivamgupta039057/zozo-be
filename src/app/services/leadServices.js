@@ -292,13 +292,14 @@ exports.getleadbyId = async (id) => {
 exports.getAllLeads = async ({ query, body }) => {
   try {
     const {
+      
       searchField,
       searchText,
       filters = [],
       statusIds,
       assignees,
-      startDate, // DD-MM-YYYY
-      endDate,   // DD-MM-YYYY
+      startDate, 
+      endDate,   
       page = 1,
       limit = 10,
     } = body;
@@ -378,118 +379,229 @@ exports.getAllLeads = async ({ query, body }) => {
     /* ==================================================
        5️⃣ DYNAMIC FILTER BUILDER (ANY FIELD)
     ================================================== */
+    // filters.forEach(({ field, operator, value }) => {
+    //   const sequelizeOp = operatorMap[operator];
+    //   if (!sequelizeOp) return;
+    //   const isFixed = FIXED_FIELDS.includes(field);
+
+    //   // EMPTY
+    //   if (sequelizeOp === "IS_EMPTY") {
+    //     if (isFixed) {
+    //       andConditions.push({
+    //         [Op.or]: [{ [field]: null }, { [field]: "" }],
+    //       });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
+    //           ""
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+    //   // NOT EMPTY
+    //   if (sequelizeOp === "IS_NOT_EMPTY") {
+    //     if (isFixed) {
+    //       andConditions.push({ [field]: { [Op.ne]: null } });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.json(`data.${field}`),
+    //           { [Op.ne]: null }
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+    //   // BETWEEN (NON-DATE)
+    //   // BETWEEN
+    //   if (sequelizeOp === Op.between && Array.isArray(value)) {
+
+    //     // ✅ DATE FIELD FIX (createdAt / updatedAt)
+    //     if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
+    //       const [start, end] = value;
+
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
+    //           {
+    //             [Op.between]: [
+    //               Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
+    //               Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
+    //             ],
+    //           }
+    //         )
+    //       );
+    //       return;
+    //     }
+
+    //     // ✅ NORMAL BETWEEN (numbers, strings)
+    //     if (isFixed) {
+    //       andConditions.push({
+    //         [field]: { [Op.between]: value },
+    //       });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.json(`data.${field}`),
+    //           { [Op.between]: value }
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+
+    //   // IN / NOT IN
+    //   if (Array.isArray(value)) {
+    //     if (isFixed) {
+    //       andConditions.push({
+    //         [field]: { [sequelizeOp]: value },
+    //       });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.json(`data.${field}`),
+    //           { [sequelizeOp]: value }
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+    //   // NORMAL STRING / NUMBER
+    //   if (isFixed) {
+    //     andConditions.push({
+    //       [field]:
+    //         operator === "contains"
+    //           ? { [Op.iLike]: `%${value}%` }
+    //           : { [sequelizeOp]: value },
+    //     });
+    //   } else {
+    //     andConditions.push(
+    //       Sequelize.where(
+    //         Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
+    //         operator === "contains"
+    //           ? { [Op.iLike]: `%${value}%` }
+    //           : { [sequelizeOp]: value }
+    //       )
+    //     );
+    //   }
+    // });
+
+
     filters.forEach(({ field, operator, value }) => {
-      const sequelizeOp = operatorMap[operator];
-      if (!sequelizeOp) return;
-      const isFixed = FIXED_FIELDS.includes(field);
+  const sequelizeOp = operatorMap[operator];
+  if (!sequelizeOp || !Array.isArray(value) || value.length === 0) return;
 
-      // EMPTY
-      if (sequelizeOp === "IS_EMPTY") {
-        if (isFixed) {
-          andConditions.push({
-            [Op.or]: [{ [field]: null }, { [field]: "" }],
-          });
-        } else {
-          andConditions.push(
-            Sequelize.where(
-              Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
-              ""
-            )
-          );
-        }
-        return;
-      }
+  const isFixed = FIXED_FIELDS.includes(field);
 
-      // NOT EMPTY
-      if (sequelizeOp === "IS_NOT_EMPTY") {
-        if (isFixed) {
-          andConditions.push({ [field]: { [Op.ne]: null } });
-        } else {
-          andConditions.push(
-            Sequelize.where(
-              Sequelize.json(`data.${field}`),
-              { [Op.ne]: null }
-            )
-          );
-        }
-        return;
-      }
+  /* ================= EMPTY ================= */
+  if (sequelizeOp === "IS_EMPTY") {
+    if (isFixed) {
+      andConditions.push({
+        [Op.or]: [{ [field]: null }, { [field]: "" }],
+      });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
+          ""
+        )
+      );
+    }
+    return;
+  }
 
-      // BETWEEN (NON-DATE)
-      // BETWEEN
-      if (sequelizeOp === Op.between && Array.isArray(value)) {
+  /* ============== NOT EMPTY ================ */
+  if (sequelizeOp === "IS_NOT_EMPTY") {
+    if (isFixed) {
+      andConditions.push({ [field]: { [Op.ne]: null } });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.json(`data.${field}`),
+          { [Op.ne]: null }
+        )
+      );
+    }
+    return;
+  }
 
-        // ✅ DATE FIELD FIX (createdAt / updatedAt)
-        if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
-          const [start, end] = value;
+  /* ================= BETWEEN ================= */
+  if (sequelizeOp === Op.between && value.length === 2) {
+    const [start, end] = value;
 
-          andConditions.push(
-            Sequelize.where(
-              Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
-              {
-                [Op.between]: [
-                  Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
-                  Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
-                ],
-              }
-            )
-          );
-          return;
-        }
+    // DATE
+    if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
+          {
+            [Op.between]: [
+              Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
+              Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
+            ],
+          }
+        )
+      );
+      return;
+    }
 
-        // ✅ NORMAL BETWEEN (numbers, strings)
-        if (isFixed) {
-          andConditions.push({
-            [field]: { [Op.between]: value },
-          });
-        } else {
-          andConditions.push(
-            Sequelize.where(
-              Sequelize.json(`data.${field}`),
-              { [Op.between]: value }
-            )
-          );
-        }
-        return;
-      }
+    // NORMAL BETWEEN
+    if (isFixed) {
+      andConditions.push({ [field]: { [Op.between]: value } });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.json(`data.${field}`),
+          { [Op.between]: value }
+        )
+      );
+    }
+    return;
+  }
 
+  /* ================= IN / NOT IN ================= */
+  if (sequelizeOp === Op.in || sequelizeOp === Op.notIn) {
+    if (isFixed) {
+      andConditions.push({ [field]: { [sequelizeOp]: value } });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.json(`data.${field}`),
+          { [sequelizeOp]: value }
+        )
+      );
+    }
+    return;
+  }
 
-      // IN / NOT IN
-      if (Array.isArray(value)) {
-        if (isFixed) {
-          andConditions.push({
-            [field]: { [sequelizeOp]: value },
-          });
-        } else {
-          andConditions.push(
-            Sequelize.where(
-              Sequelize.json(`data.${field}`),
-              { [sequelizeOp]: value }
-            )
-          );
-        }
-        return;
-      }
+  /* ========== SINGLE VALUE (array[0]) ========== */
+  const singleValue = value[0];
 
-      // NORMAL STRING / NUMBER
-      if (isFixed) {
-        andConditions.push({
-          [field]:
-            operator === "contains"
-              ? { [Op.iLike]: `%${value}%` }
-              : { [sequelizeOp]: value },
-        });
-      } else {
-        andConditions.push(
-          Sequelize.where(
-            Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
-            operator === "contains"
-              ? { [Op.iLike]: `%${value}%` }
-              : { [sequelizeOp]: value }
-          )
-        );
-      }
+  if (isFixed) {
+    andConditions.push({
+      [field]:
+        operator === "contains"
+          ? { [Op.iLike]: `%${singleValue}%` }
+          : { [sequelizeOp]: singleValue },
     });
+  } else {
+    andConditions.push(
+      Sequelize.where(
+        Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
+        operator === "contains"
+          ? { [Op.iLike]: `%${singleValue}%` }
+          : { [sequelizeOp]: singleValue }
+      )
+    );
+  }
+});
+
 
     /* ==================================================
        APPLY ALL CONDITIONS
