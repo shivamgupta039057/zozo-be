@@ -15,22 +15,22 @@ io = getIO(); // Returns null if not initialized (e.g., in worker processes)
 
 exports.handleIncomingMessage = async (payload) => {
 
-
+console.log("handleIncomingMessage payload:", payload);
   const value = payload?.entry?.[0]?.changes?.[0]?.value;
 
   console.log("Incoming WhatsApp payload:", value);
   if (!value) {
     return { statusCode: 200, success: true, message: "Invalid payload" };
   }
-  if (value.statuses && value.statuses.length > 0) {
-    for (const s of value.statuses) {
-      await BroadcastLog.create({
-        phone: s.recipient_id,
-        status: s.status,
-        meta_response: s
-      });
-    }
-  }
+  // if (value.statuses && value.statuses.length > 0) {
+  //   for (const s of value.statuses) {
+  //     await BroadcastLog.create({
+  //       phone: s.recipient_id,
+  //       status: s.status,
+  //       meta_response: s
+  //     });
+  //   }
+  // }
   const message = value.messages?.[0];
   if (!message) {
     return {
@@ -140,7 +140,6 @@ exports.sendText = async ({ phone, text }) => {
   try {
 
       const chat = await getOrCreateChat(phone);
-
     const response = await axios.post(
       API_URL,
       {
@@ -185,7 +184,6 @@ exports.sendText = async ({ phone, text }) => {
       };
       console.log("Emitting to room:", chat.id);
       console.log("Message Data:", messageData);
-      console.log("IO Object:", io);
       io.to(`${chat.id}`).emit('newMessage', messageData);
       // Also emit to update chat list
       // io.emit('chatUpdated', {
