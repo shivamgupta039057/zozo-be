@@ -82,6 +82,7 @@ console.log("handleIncomingMessage payload:", payload);
     chat = await WhatsappChat.create({
       phone: whatsapp_number,
       lead_id: lead.id,
+      is_24h_active: true,
       last_message_at: new Date()
     });
   }
@@ -139,7 +140,18 @@ console.log("handleIncomingMessage payload:", payload);
 exports.sendText = async ({ phone, text }) => {
   try {
 
+
       const chat = await getOrCreateChat(phone);
+
+
+          // 🚫 24-hour window check
+    if (!chat.is_24h_active) {
+      return {
+        success: false,
+        message: "24-hour window expired. Text message not allowed. Please send a template message."
+      };
+    }
+
     const response = await axios.post(
       API_URL,
       {
@@ -381,7 +393,7 @@ async function getOrCreateChat(phone) {
       phone: whatsapp_number,
       lead_id: lead.id,
       last_message_at: new Date(),
-      is_24h_active: true
+      // is_24h_active: true
     });
   }
 
