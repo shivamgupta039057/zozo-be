@@ -9,6 +9,7 @@ const path = require("path");
 const fs = require("fs");
 const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
 const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap } = require("../../utils/filerDynamic");
+const { default: axios } = require("axios");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -1087,15 +1088,22 @@ exports.bulkAssignLeads = async (body) => {
 
 
 // Bulk Lead Upload Step 1: Upload File
-exports.uploadFile = async (body, user) => {
+exports.uploadFile = async (file, body, user) => {
+
+  console.log("filefilefile" , file);
+  
   try {
 
-    const upload = await BulkLeadUpload.create({
-      file_name: body.originalname,
-      file_path: body.path,
-      uploaded_by: user.id
-    });
-    // console.log("Upload record created:", upload.id);
+const upload = await BulkLeadUpload.create({
+  file_name: file.originalname,
+  
+  file_path: file.location, 
+  
+  uploaded_by: user?.id || null 
+});
+
+
+    console.log("Upload record created:", upload);
     return {
       message: "File uploaded successfully",
       statusCode: statusCode.OK,
@@ -1113,16 +1121,52 @@ exports.uploadFile = async (body, user) => {
   }
 };
 
+// exports.getSheets = async (uploadId) => {
+//   try {
+//     const upload = await BulkLeadUpload.findByPk(uploadId);
+//     console.log("Fetched upload record:", upload);
+//     const wb = XLSX.readFile(upload.file_path);
+//     const sheet = wb.SheetNames[0];
+//     const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1 })[0];
+//     console.log("Extracted headers:", headers);
+//     console.log("Sheet names:", wb.SheetNames);
+//     return {
+//       message: "Sheets fetched successfully",
+//       statusCode: statusCode.OK,
+//       success: true,
+//       sheets: wb.SheetNames,
+//       headers
+//     };
+//   } catch (error) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: error.message
+//     };
+//   }
+// };
+
 // Step 2: Get Sheets and Headers
 exports.getSheets = async (uploadId) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
-    console.log("Fetched upload record:", upload);
-    const wb = XLSX.readFile(upload.file_path);
-    const sheet = wb.SheetNames[0];
-    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1 })[0];
+if (!upload) throw new Error("Upload record not found");
+
+    console.log("Fetching file from S3:", upload.file_path);
+
+    // 1. Download the file from S3 as an ArrayBuffer
+    const response = await axios.get(upload.file_path, { responseType: 'arraybuffer' });
+    const buffer = response.data;
+
+    // 2. Use XLSX.read (NOT readFile) to parse the buffer
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+
+    const sheetName = wb.SheetNames[0];
+    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 })[0];
+
     console.log("Extracted headers:", headers);
-    console.log("Sheet names:", wb.SheetNames);
+
+    
     return {
       message: "Sheets fetched successfully",
       statusCode: statusCode.OK,

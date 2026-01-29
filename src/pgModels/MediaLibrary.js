@@ -47,7 +47,7 @@ const MediaLibrary = sequelize.define(
 
     // optional: who uploaded it
     uploaded_by: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
 

@@ -92,9 +92,9 @@ exports.bulkAssignLeads = async ({ body }) => {
 
 
 // Bulk Lead Upload Step 1: Upload File
-exports.uploadFile = async ({ body, user }) => {
+exports.uploadFile = async ({ body, user, file }) => {
   try {
-    return await services.uploadFile(body, user);
+    return await services.uploadFile(file, body, user);
   } catch (error) {
     return {
       statusCode: 500,
