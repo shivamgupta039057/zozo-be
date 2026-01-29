@@ -10,6 +10,7 @@ const { BroadcastLog } = require("../../pgModels/index");
 let io;
 
 const { getIO }  = require('../sockets/socketIntance');
+const { buildTemplatePayload } = require("../../utils/buildTemplatePayload");
 io = getIO(); // Returns null if not initialized (e.g., in worker processes)
 
 
@@ -137,6 +138,8 @@ console.log("handleIncomingMessage payload:", payload);
 
 
 exports.sendText = async ({ phone, text }) => {
+  console.log("phone, textphone, textphone, text" , phone, text);
+  
   try {
 
       const chat = await getOrCreateChat(phone);
@@ -155,8 +158,11 @@ exports.sendText = async ({ phone, text }) => {
           Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
           "Content-Type": "application/json"
         }
+        
       }
     );
+    console.log("responseresponseresponse" , response);
+    
    const savedMessage = await WhatsappMessage.create({
       chat_id: chat.id,
       direction: "OUT",
@@ -352,15 +358,25 @@ exports.getMessagesByChatId = async (params) => {
 
 
 async function getOrCreateChat(phone) {
+console.log("ddddddddddddddddddddddddddddddddddddd" , phone);
 
     const numberMatch = phone.match(/\d+/);
+
+    console.log("numberMatchnumberMatchnumberMatch" , numberMatch);
+    
   let whatsapp_number
   if (numberMatch) {
     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
     whatsapp_number = phoneNumber.nationalNumber
   }
 
+  console.log("whatsapp_numberwhatsapp_numberwhatsapp_number" , whatsapp_number);
+  
+
   let lead = await Lead.findOne({ where: { whatsapp_number } });
+
+  console.log("leadleadleadleadlead" , lead);
+  
 
 
   if (!lead) {
@@ -407,6 +423,9 @@ exports.createTemplate = async (req, res) => {
         }
       }
     );
+
+    console.log("responseresponseresponseresponseresponseresponse" , response);
+    
 
     return res.json({
       success: true,
