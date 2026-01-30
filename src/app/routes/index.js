@@ -13,7 +13,6 @@ module.exports = (app) => {
   app.use(`${apiV1Prefix}/permission`, require("../routes/permissionRoute"));
   app.use(`${apiV1Prefix}/workflow`, require("../routes/workflowRoutes"));
   app.use(`${apiV1Prefix}/whatsapp`, require("../routes/whatsappRoutes"));
-
   app.use(`${apiV1Prefix}/media`, require("../routes/mediaRoutes"));
   app.use(`${apiV1Prefix}/brodcaste`, require("../routes/brodcasteRoute"));
   app.use(`${apiV1Prefix}/facebook`, require("../routes/facebookRoute"));
