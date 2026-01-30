@@ -14,7 +14,7 @@ module.exports = async function OnLeadStatusChange(lead, status) {
     },
   });
 
-  // console.log("triggerNodestriggerNodestriggerNodes", triggerNodes);
+  console.log("triggerNodestriggerNodestriggerNodes", triggerNodes);
 
   if (!triggerNodes || triggerNodes.length === 0) return null;
   const results = [];

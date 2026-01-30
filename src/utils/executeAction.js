@@ -6,13 +6,16 @@ function handleTemplateAction(node) {
   const { template_id, variables } = node.data || {};
   // console.log("fffnodenodenodenodenodenodenodenode", node);
 
-  console.log("📲 Sending WhatsApp to hsdkjhfkjhkjdh", node.data.selectedData.label);
-  return node.data.selectedData.label;
+  console.log("📲 Sending WhatsApp to hsdkjhfkjhkjdh", node.data.selectedData);
+  return node.data.selectedData;
 
   // await sendWhatsAppMessage({ template_id, variables, lead });
 }
 
 module.exports = async function executeAction(node, lead) {
+
+  console.log("nodenodenodenodenodenode" , node.action_type ,"ddkldkkl" ,node.data);
+  
   // console.log(node.action_type, "actionaaaaaaaaaa");
   switch (node.action_type) {
     // ================== WHATSAPP ==================
@@ -25,7 +28,8 @@ module.exports = async function executeAction(node, lead) {
     case "Lead Status": {
       console.log("Lead status first")
 
-      const { status_id } = node.data || {};
+      const { selectedData } = node.data || {};
+      const status_id = selectedData?.id;
       if (!status_id) return;
 
       console.log("🔄 Updating lead status to", status_id);

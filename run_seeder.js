@@ -4,7 +4,9 @@ require('dotenv').config();
 const seedData = require('./src/seed/seedData');
 const permissionTemplateSeeder = require('./src/seed/permissionTemplateSeeder');
 const insertDefaultLeadFields = require('./src/seed/leadFieldDefaults');
-const { sequelize, LeadField, initDB } = require('./src/pgModels/index');
+const { sequelize, LeadField, initDB, LeadStage, LeadStatus } = require('./src/pgModels/index');
+const insertDefaultLeadStages = require('./src/seed/leadStageDefaults');
+const insertDefaultLeadStatuses = require('./src/seed/insertDefaultLeadStatuses');
 
 async function runSeeders() {
   try {
@@ -30,6 +32,26 @@ async function runSeeders() {
       await insertDefaultLeadFields(LeadField);
       console.log('LeadFields seeded.');
     }
+
+   // check if lead stages already exist
+     const leadStageCount = await LeadStage.count();
+    if (leadStageCount > 0) {
+      console.log('LeadStages already seeded. Skipping lead stage seeder.');
+    } else {
+      await insertDefaultLeadStages(LeadStage);
+      console.log('LeadStages seeded.');
+    }
+
+    // check if lead statuses already exist
+      // check if lead stages already exist
+     const leadStatusCount = await LeadStatus.count();
+    if (leadStatusCount > 0) {
+      console.log('LeadStatuses already seeded. Skipping lead status seeder.');
+    } else {
+      await insertDefaultLeadStatuses(LeadStatus);
+      console.log('LeadStatuses seeded.');
+    }
+
 
     console.log('✅ All seeders executed (idempotent).');
     process.exit(0);
