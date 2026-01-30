@@ -1,5 +1,12 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField } = require("../../pgModels");
+const {
+  Lead,
+  LeadStage,
+  LeadStatus,
+  UserModel,
+  BulkLeadUpload,
+  LeadField,
+} = require("../../pgModels");
 const { Op, Sequelize } = require("sequelize");
 
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
@@ -7,8 +14,16 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
-const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap } = require("../../utils/filerDynamic");
+const {
+  parseExcel,
+  buildLeadPayload,
+  buildAssignmentPlan,
+} = require("../../utils/leadBulkInsert");
+const {
+  SEARCH_FIELD_MAP,
+  FIXED_FIELDS,
+  operatorMap,
+} = require("../../utils/filerDynamic");
 const { default: axios } = require("axios");
 const OnLeadStatusChange = require("../../utils/OnLeadStatusChange");
 /**
@@ -22,19 +37,19 @@ exports.addLead = async (body, user) => {
   console.log("sdssadsasdsbodybodybodybody", body);
 
   try {
-    const { data, source, assignedTo, notes, name, email, whatsapp_number } = body;
-
+    const { data, source, assignedTo, notes, name, email, whatsapp_number } =
+      body;
 
     // Check if whatsapp_number already exists in the Lead model
     if (whatsapp_number) {
       const existingLead = await Lead.findOne({
-        where: { whatsapp_number: whatsapp_number }
+        where: { whatsapp_number: whatsapp_number },
       });
       if (existingLead) {
         return {
           statusCode: statusCode.BAD_REQUEST,
           success: false,
-          message: "Lead with this WhatsApp number already exists"
+          message: "Lead with this WhatsApp number already exists",
         };
       }
     }
@@ -63,7 +78,7 @@ exports.addLead = async (body, user) => {
     if (workflowRule && workflowRule.action_data) {
       console.log(
         "Workflow Template for this status:",
-        workflowRule.action_data
+        workflowRule.action_data,
       );
 
       // Check for existing queue entry
@@ -104,8 +119,6 @@ exports.addLead = async (body, user) => {
     };
   }
 };
-
-
 
 // exports.getAllLeads = async ({query,user}) => {
 //   try {
@@ -290,18 +303,16 @@ exports.getleadbyId = async (id) => {
   }
 };
 
-
 exports.getAllLeads = async ({ query, body }) => {
   try {
     const {
-      
       searchField,
       searchText,
       filters = [],
       statusIds,
       assignees,
-      startDate, 
-      endDate,   
+      startDate,
+      endDate,
       page = 1,
       limit = 10,
     } = body;
@@ -328,12 +339,12 @@ exports.getAllLeads = async ({ query, body }) => {
           Sequelize.where(
             Sequelize.cast(
               Sequelize.json(`data.${fieldConfig.column}`),
-              "text"
+              "text",
             ),
             {
               [Op.iLike]: `%${searchText}%`,
-            }
-          )
+            },
+          ),
         );
       }
     }
@@ -366,15 +377,12 @@ exports.getAllLeads = async ({ query, body }) => {
     ================================================== */
     if (startDate && endDate) {
       andConditions.push(
-        Sequelize.where(
-          Sequelize.fn("DATE", Sequelize.col("Lead.createdAt")),
-          {
-            [Op.between]: [
-              Sequelize.literal(`TO_DATE('${startDate}', 'DD-MM-YYYY')`),
-              Sequelize.literal(`TO_DATE('${endDate}', 'DD-MM-YYYY')`),
-            ],
-          }
-        )
+        Sequelize.where(Sequelize.fn("DATE", Sequelize.col("Lead.createdAt")), {
+          [Op.between]: [
+            Sequelize.literal(`TO_DATE('${startDate}', 'DD-MM-YYYY')`),
+            Sequelize.literal(`TO_DATE('${endDate}', 'DD-MM-YYYY')`),
+          ],
+        }),
       );
     }
 
@@ -456,7 +464,6 @@ exports.getAllLeads = async ({ query, body }) => {
     //     return;
     //   }
 
-
     //   // IN / NOT IN
     //   if (Array.isArray(value)) {
     //     if (isFixed) {
@@ -494,116 +501,109 @@ exports.getAllLeads = async ({ query, body }) => {
     //   }
     // });
 
-
     filters.forEach(({ field, operator, value }) => {
-  const sequelizeOp = operatorMap[operator];
-  if (!sequelizeOp || !Array.isArray(value) || value.length === 0) return;
+      const sequelizeOp = operatorMap[operator];
+      if (!sequelizeOp || !Array.isArray(value) || value.length === 0) return;
 
-  const isFixed = FIXED_FIELDS.includes(field);
+      const isFixed = FIXED_FIELDS.includes(field);
 
-  /* ================= EMPTY ================= */
-  if (sequelizeOp === "IS_EMPTY") {
-    if (isFixed) {
-      andConditions.push({
-        [Op.or]: [{ [field]: null }, { [field]: "" }],
-      });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
-          ""
-        )
-      );
-    }
-    return;
-  }
+      /* ================= EMPTY ================= */
+      if (sequelizeOp === "IS_EMPTY") {
+        if (isFixed) {
+          andConditions.push({
+            [Op.or]: [{ [field]: null }, { [field]: "" }],
+          });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
+              "",
+            ),
+          );
+        }
+        return;
+      }
 
-  /* ============== NOT EMPTY ================ */
-  if (sequelizeOp === "IS_NOT_EMPTY") {
-    if (isFixed) {
-      andConditions.push({ [field]: { [Op.ne]: null } });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.json(`data.${field}`),
-          { [Op.ne]: null }
-        )
-      );
-    }
-    return;
-  }
+      /* ============== NOT EMPTY ================ */
+      if (sequelizeOp === "IS_NOT_EMPTY") {
+        if (isFixed) {
+          andConditions.push({ [field]: { [Op.ne]: null } });
+        } else {
+          andConditions.push(
+            Sequelize.where(Sequelize.json(`data.${field}`), { [Op.ne]: null }),
+          );
+        }
+        return;
+      }
 
-  /* ================= BETWEEN ================= */
-  if (sequelizeOp === Op.between && value.length === 2) {
-    const [start, end] = value;
+      /* ================= BETWEEN ================= */
+      if (sequelizeOp === Op.between && value.length === 2) {
+        const [start, end] = value;
 
-    // DATE
-    if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
-          {
-            [Op.between]: [
-              Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
-              Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
-            ],
-          }
-        )
-      );
-      return;
-    }
+        // DATE
+        if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
+              {
+                [Op.between]: [
+                  Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
+                  Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
+                ],
+              },
+            ),
+          );
+          return;
+        }
 
-    // NORMAL BETWEEN
-    if (isFixed) {
-      andConditions.push({ [field]: { [Op.between]: value } });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.json(`data.${field}`),
-          { [Op.between]: value }
-        )
-      );
-    }
-    return;
-  }
+        // NORMAL BETWEEN
+        if (isFixed) {
+          andConditions.push({ [field]: { [Op.between]: value } });
+        } else {
+          andConditions.push(
+            Sequelize.where(Sequelize.json(`data.${field}`), {
+              [Op.between]: value,
+            }),
+          );
+        }
+        return;
+      }
 
-  /* ================= IN / NOT IN ================= */
-  if (sequelizeOp === Op.in || sequelizeOp === Op.notIn) {
-    if (isFixed) {
-      andConditions.push({ [field]: { [sequelizeOp]: value } });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.json(`data.${field}`),
-          { [sequelizeOp]: value }
-        )
-      );
-    }
-    return;
-  }
+      /* ================= IN / NOT IN ================= */
+      if (sequelizeOp === Op.in || sequelizeOp === Op.notIn) {
+        if (isFixed) {
+          andConditions.push({ [field]: { [sequelizeOp]: value } });
+        } else {
+          andConditions.push(
+            Sequelize.where(Sequelize.json(`data.${field}`), {
+              [sequelizeOp]: value,
+            }),
+          );
+        }
+        return;
+      }
 
-  /* ========== SINGLE VALUE (array[0]) ========== */
-  const singleValue = value[0];
+      /* ========== SINGLE VALUE (array[0]) ========== */
+      const singleValue = value[0];
 
-  if (isFixed) {
-    andConditions.push({
-      [field]:
-        operator === "contains"
-          ? { [Op.iLike]: `%${singleValue}%` }
-          : { [sequelizeOp]: singleValue },
+      if (isFixed) {
+        andConditions.push({
+          [field]:
+            operator === "contains"
+              ? { [Op.iLike]: `%${singleValue}%` }
+              : { [sequelizeOp]: singleValue },
+        });
+      } else {
+        andConditions.push(
+          Sequelize.where(
+            Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
+            operator === "contains"
+              ? { [Op.iLike]: `%${singleValue}%` }
+              : { [sequelizeOp]: singleValue },
+          ),
+        );
+      }
     });
-  } else {
-    andConditions.push(
-      Sequelize.where(
-        Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
-        operator === "contains"
-          ? { [Op.iLike]: `%${singleValue}%` }
-          : { [sequelizeOp]: singleValue }
-      )
-    );
-  }
-});
-
 
     /* ==================================================
        APPLY ALL CONDITIONS
@@ -661,8 +661,6 @@ exports.getAllLeads = async ({ query, body }) => {
   }
 };
 
-
-
 exports.changeStatus = async (body, params) => {
   try {
     let dataTemp;
@@ -697,9 +695,9 @@ exports.changeStatus = async (body, params) => {
       };
     }
 
-    console.log("leadDataleadDataleadData" , leadData);
-    
-     console.log("leadIdleadIdleadIdleadIdleadIdleadId" , leadId ,  statusId);
+    console.log("leadDataleadDataleadData", leadData);
+
+    console.log("leadIdleadIdleadIdleadIdleadIdleadId", leadId, statusId);
 
     // If there is no associated stage
     if (!status.stage_id && (!status.stage || !status.stage.id)) {
@@ -713,10 +711,12 @@ exports.changeStatus = async (body, params) => {
     // Optionally pass both lead and new status for potential logic
     if (typeof OnLeadStatusChange === "function") {
       console.log("Calling OnLeadStatusChange function...");
-       dataTemp = await OnLeadStatusChange(leadData, statusId);
-      
+      dataTemp = await OnLeadStatusChange(leadData, statusId);
     } else {
-      console.log("OnLeadStatusChange is not a function:", typeof OnLeadStatusChange);
+      console.log(
+        "OnLeadStatusChange is not a function:",
+        typeof OnLeadStatusChange,
+      );
     }
 
     // Update the lead with new status and stage
@@ -735,7 +735,7 @@ exports.changeStatus = async (body, params) => {
       message:
         resMessage.LEAD_STATUS_UPDATED || "Lead status updated successfully",
       data: updatedLead,
-      dataTemp      
+      dataTemp,
     };
   } catch (error) {
     return {
@@ -770,7 +770,7 @@ exports.leadUpload = async (body, user) => {
     const filePath = path.join(
       __dirname,
       "../../../public/uploads",
-      relativePath
+      relativePath,
     );
 
     // Check if the file exists at the specified path
@@ -1034,9 +1034,7 @@ exports.bulkAssignLeads = async (body) => {
 
   const totalLeads = leadIds.length;
 
-  let counts = percentages.map(p =>
-    Math.floor((p / 100) * totalLeads)
-  );
+  let counts = percentages.map((p) => Math.floor((p / 100) * totalLeads));
 
   let assigned = counts.reduce((a, b) => a + b, 0);
   let remainder = totalLeads - assigned;
@@ -1054,10 +1052,10 @@ exports.bulkAssignLeads = async (body) => {
         Lead.update(
           {
             assignedTo: userIds[i],
-            ...(statusId ? { status_id: statusId } : {})
+            ...(statusId ? { status_id: statusId } : {}),
           },
-          { where: { id: leadIds[leadIndex++] } }
-        )
+          { where: { id: leadIds[leadIndex++] } },
+        ),
       );
     }
   }
@@ -1071,23 +1069,16 @@ exports.bulkAssignLeads = async (body) => {
   };
 };
 
-
-
 // Bulk Lead Upload Step 1: Upload File
 exports.uploadFile = async (file, body, user) => {
+  console.log("filefilefile", file);
 
-  console.log("filefilefile" , file);
-  
   try {
-
-const upload = await BulkLeadUpload.create({
-  file_name: file.originalname,
-  
-  file_path: file.location, 
-  
-  uploaded_by: user?.id || null 
-});
-
+    const upload = await BulkLeadUpload.create({
+      file_name: file.originalname,
+      file_path: file.location,
+      uploaded_by: user?.id || null,
+    });
 
     console.log("Upload record created:", upload);
     return {
@@ -1095,14 +1086,13 @@ const upload = await BulkLeadUpload.create({
       statusCode: statusCode.OK,
       success: true,
       uploadId: upload.id,
-      filename: body.originalname
+      filename: body.originalname,
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
       message: error.message,
-
     };
   }
 };
@@ -1136,35 +1126,38 @@ const upload = await BulkLeadUpload.create({
 exports.getSheets = async (uploadId) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
-if (!upload) throw new Error("Upload record not found");
+    if (!upload) throw new Error("Upload record not found");
 
     console.log("Fetching file from S3:", upload.file_path);
 
     // 1. Download the file from S3 as an ArrayBuffer
-    const response = await axios.get(upload.file_path, { responseType: 'arraybuffer' });
+    const response = await axios.get(upload.file_path, {
+      responseType: "arraybuffer",
+    });
     const buffer = response.data;
 
     // 2. Use XLSX.read (NOT readFile) to parse the buffer
-    const wb = XLSX.read(buffer, { type: 'buffer' });
+    const wb = XLSX.read(buffer, { type: "buffer" });
 
     const sheetName = wb.SheetNames[0];
-    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 })[0];
+    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
+      header: 1,
+    })[0];
 
     console.log("Extracted headers:", headers);
 
-    
     return {
       message: "Sheets fetched successfully",
       statusCode: statusCode.OK,
       success: true,
       sheets: wb.SheetNames,
-      headers
+      headers,
     };
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: error.message
+      message: error.message,
     };
   }
 };
@@ -1172,45 +1165,122 @@ if (!upload) throw new Error("Upload record not found");
 // Step 3: Validate Mapping
 exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
   try {
-    if (!valmapping.whatsapp_number)
-      return { statusCode: statusCode.BAD_REQUEST, success: false, message: "WhatsApp is required" };
+    if (!valmapping.whatsapp_number) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "WhatsApp is required",
+      };
+    }
+
     const fields = await LeadField.findAll({ where: { is_active: true } });
-    console.log("Valid lead fields:", fields.map(f => f.name));
-    const validFields = fields.map(f => f.name);
-    Object.keys(valmapping.data || {}).forEach(f => {
-      if (!validFields.includes(f))
-        throw new Error(`Invalid field: ${f}`);
+    console.log(
+      "Valid lead fields:",
+      fields.map((f) => f.name)
+    );
+    const validFields = fields.map((f) => f.name);
+
+    Object.keys(valmapping.data || {}).forEach((f) => {
+      if (!validFields.includes(f)) throw new Error(`Invalid field: ${f}`);
     });
 
     const upload = await BulkLeadUpload.findByPk(uploadId);
-    const rows = parseExcel(upload.file_path, sheet);
-    const numbers = rows.map(r => r[mapping.whatsapp_number]);
+    if (!upload) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "Upload record not found",
+      };
+    }
+    console.log("Upload record:", upload.dataValues);
+
+    // Download the file from S3 (URL in upload.file_path)
+    // Use axios to fetch as arraybuffer, then parse with XLSX
+    const axiosResp = await axios.get(upload.file_path, { responseType: "arraybuffer" });
+    const buffer = axiosResp.data;
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+
+    if (!workbook.SheetNames.includes(sheet)) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "Sheet not found in the uploaded file",
+      };
+    }
+
+    const ws = workbook.Sheets[sheet];
+    const rows = XLSX.utils.sheet_to_json(ws);
+
+    // mapping.whatsapp_number is column name from mapping
+    const numbers = rows.map((r) => r[mapping.whatsapp_number]).filter(Boolean);
+
+    if (numbers.length === 0) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "No WhatsApp numbers found in the sheet per mapping.",
+      };
+    }
+
     const duplicates = await Lead.findAll({
       where: { whatsapp_number: { [Op.in]: numbers } },
-      attributes: ["whatsapp_number"]
+      attributes: ["whatsapp_number"],
     });
+
     return { statusCode: statusCode.OK, success: true, duplicates };
   } catch (error) {
-    return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
+    console.log("Error in validateMapping:", error);
+
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message || "Error validating mapping",
+    };
   }
 };
+
+// exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
+//   try {
+//     if (!valmapping.whatsapp_number)
+//       return {
+//         statusCode: statusCode.BAD_REQUEST,
+//         success: false,
+//         message: "WhatsApp is required",
+//       };
+//     const fields = await LeadField.findAll({ where: { is_active: true } });
+//     console.log(
+//       "Valid lead fields:",
+//       fields.map((f) => f.name),
+//     );
+//     const validFields = fields.map((f) => f.name);
+//     Object.keys(valmapping.data || {}).forEach((f) => {
+//       if (!validFields.includes(f)) throw new Error(`Invalid field: ${f}`);
+//     });
+
+//     const upload = await BulkLeadUpload.findByPk(uploadId);
+//     console.log("uploaduploaduploaduploadupload" , upload);
+    
+//     const rows = parseExcel(upload.file_path, sheet);
+//     const numbers = rows.map((r) => r[mapping.whatsapp_number]);
+//     const duplicates = await Lead.findAll({
+//       where: { whatsapp_number: { [Op.in]: numbers } },
+//       attributes: ["whatsapp_number"],
+//     });
+//     return { statusCode: statusCode.OK, success: true, duplicates };
+//   } catch (error) {
+//     console.log("errorerrorerrorerrorerror" , error);
+    
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: error.message,
+//     };
+//   }
+// };
 
 // Step 4: Check Duplicates
-exports.checkDuplicates = async ({ uploadId, sheet, mapping }) => {
-  try {
-    const upload = await BulkLeadUpload.findByPk(uploadId);
-    const rows = parseExcel(upload.file_path, sheet);
-    const numbers = rows.map(r => r[mapping.whatsapp_number]);
-    const duplicates = await Lead.findAll({
-      where: { whatsapp_number: { [Op.in]: numbers } },
-      attributes: ["whatsapp_number"]
-    });
-    return { statusCode: statusCode.OK, success: true, duplicates };
-  } catch (error) {
-    return { statusCode: statusCode.BAD_REQUEST, success: false, message: error.message };
-  }
-};
-
+   // Download the file from S3 (URL in upload.file_path)
+    // Use axios to fetch as arraybuffer, then parse with XLSX
 // Step 5: Commit Import
 // exports.commitImport = async ({ uploadId, sheet, mapping, user }) => {
 //   try {
@@ -1232,6 +1302,7 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
     const status = await LeadStatus.findOne({ where: { is_default: true } });
+
     if (!upload) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -1240,7 +1311,27 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
       };
     }
 
-    const rows = parseExcel(upload.file_path, sheet);
+    let rows = [];
+    let filePath = upload.file_path;
+
+    // basic check to see if file path is an S3 url
+    const isS3Url = typeof filePath === 'string' && (filePath.startsWith('http://') || filePath.startsWith('https://'));
+
+    if (isS3Url) {
+      // Download excel file from S3 url using axios, parse as arraybuffer, then parse using XLSX
+      const fileResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
+      const data = fileResponse.data;
+      const workbook = XLSX.read(data, { type: 'buffer' });
+
+      // Try getting specific sheet, else get the first one
+      let wsname = sheet || workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[wsname];
+      rows = XLSX.utils.sheet_to_json(worksheet);
+    } else {
+      // Assume file is local path or accessible to parseExcel util
+      rows = parseExcel(filePath, sheet);
+    }
+
     if (!rows.length) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -1289,7 +1380,7 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
         uploadId,
         assignedTo,
         status_id,
-        source = "excel"
+        "excel"
       );
     });
 
@@ -1314,7 +1405,6 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
   }
 };
 
-
 exports.getUploadedFiles = async ({ limit, offset }) => {
   const { rows, count } = await BulkLeadUpload.findAndCountAll({
     limit,
@@ -1324,17 +1414,17 @@ exports.getUploadedFiles = async ({ limit, offset }) => {
       {
         model: UserModel,
         as: "uploader",
-        attributes: ["id", "name", "email"]
-      }
-    ]
+        attributes: ["id", "name", "email"],
+      },
+    ],
   });
 
   const uploadsWithCount = await Promise.all(
-    rows.map(async upload => {
+    rows.map(async (upload) => {
       const leadsCount = await Lead.count({
         where: {
-          upload_id: upload.id   // ✅ FIX
-        }
+          upload_id: upload.id, // ✅ FIX
+        },
       });
 
       return {
@@ -1343,9 +1433,9 @@ exports.getUploadedFiles = async ({ limit, offset }) => {
         leads: leadsCount,
         uploaded_by: upload.uploader,
         uploaded_on: upload.createdAt,
-        status: upload.status
+        status: upload.status,
       };
-    })
+    }),
   );
 
   return {
@@ -1353,7 +1443,7 @@ exports.getUploadedFiles = async ({ limit, offset }) => {
     pagination: {
       total: count,
       limit,
-      page: Math.floor(offset / limit) + 1
-    }
+      page: Math.floor(offset / limit) + 1,
+    },
   };
 };
