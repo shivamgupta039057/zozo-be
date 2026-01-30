@@ -479,7 +479,11 @@ exports.sendTemplate = async ({ phone, template_name, language = "en_US" }) => {
       phone: chat.phone,
       last_message: template_name,
       last_message_at: chat.last_message_at,
-      unread_count: chat.unread_count
+      unread_count: chat.unread_count,
+      lead:{
+        whatsapp_number : chat.phone,
+        name: chat.lead?.name || null
+      }
     });
   }
 
