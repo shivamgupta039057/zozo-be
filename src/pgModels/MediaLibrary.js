@@ -4,10 +4,11 @@ const sequelize = require("../config/postgres.config");
 const MediaLibrary = sequelize.define(
   "MediaLibrary",
   {
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+  id: {
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
+      allowNull: false
     },
 
     // original file name uploaded by user
@@ -46,7 +47,7 @@ const MediaLibrary = sequelize.define(
 
     // optional: who uploaded it
     uploaded_by: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
 

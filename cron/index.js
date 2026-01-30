@@ -1,14 +1,16 @@
+require('dotenv').config();
+
 const cron = require("node-cron");
-// Connect to the database so models can be used
-const sequelize = require("../src/config/postgres.config");
+const sequelize = require('../src/config/postgres.config');
+
+const { WhatsappChat, WhatsappMessage } = require("../src/pgModels/whatsapp");
+
+// Ensure DB connection before running cron jobs
 sequelize.authenticate().then(() => {
   console.log("Database connection established for cron.");
 }).catch((err) => {
   console.error("Unable to connect to the database in cron:", err);
 });
-// const { Op, fn, col, literal } = require("sequelize");
-const WhatsappChat = require("../src/pgModels/whatsapp/WhatsappChat");
-const WhatsappMessage = require("../src/pgModels/whatsapp/WhatsappMessage");
 
 async function chnageActiveStatus() {
   try {

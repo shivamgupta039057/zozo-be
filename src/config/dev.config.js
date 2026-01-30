@@ -11,6 +11,10 @@ module.exports = {
   // PG_PASS: process.env.PG_PASS || 'visutiCarrer',
   PG_DIALECT: process.env.PG_DIALECT || "postgres",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
+  S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
+  S3_SECRET_KEY: process.env.S3_SECRET_KEY,
+  S3_REGION: process.env.S3_REGION,
+  S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
 
   // EMAIL_CONFIG: {
   //     host: process.env.smshost,
