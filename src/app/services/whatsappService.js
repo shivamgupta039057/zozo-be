@@ -475,7 +475,7 @@ exports.sendTemplate = async ({ phone, template_name, language = "en_US" }) => {
 
   if (io) {
     io.emit("chatUpdated", {
-      chat_id: chat.id,
+      id: chat.id,
       phone: chat.phone,
       last_message: template_name,
       last_message_at: chat.last_message_at,
