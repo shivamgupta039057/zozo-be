@@ -1,6 +1,6 @@
 const { statusCode, resMessage } = require("../../config/default.json");
-const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField, Sequelize } = require("../../pgModels");
-const { Op } = require("sequelize");
+const { Lead, LeadStage, LeadStatus, UserModel, BulkLeadUpload, LeadField } = require("../../pgModels");
+const { Op, Sequelize } = require("sequelize");
 
 const WorkflowRules = require("../../pgModels/workflowRulesModel"); // Make sure to require the WorkflowRules model if not already at the top
 const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
@@ -8,7 +8,9 @@ const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
 const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
-
+const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap } = require("../../utils/filerDynamic");
+const { default: axios } = require("axios");
+const OnLeadStatusChange = require("../../utils/OnLeadStatusChange");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -20,7 +22,7 @@ exports.addLead = async (body, user) => {
   console.log("sdssadsasdsbodybodybodybody", body);
 
   try {
-    const { data, source, assignedTo, notes, name, email , whatsapp_number } = body;
+    const { data, source, assignedTo, notes, name, email, whatsapp_number } = body;
 
 
     // Check if whatsapp_number already exists in the Lead model
@@ -103,9 +105,15 @@ exports.addLead = async (body, user) => {
   }
 };
 
-// exports.getAllLeads = async (query) => {
+
+
+// exports.getAllLeads = async ({query,user}) => {
 //   try {
-//     // Eample of query->    {
+
+//     console.log("sjhhhhhhhhhhhhhhhhhhhh")
+//     console.log(user,"Sa")
+//     console.log("asdasd", query);
+//     // Example of query->    {
 //     //   "statusIds": "1,3",
 //     //   "assignees": "Shivam,Anuj",
 //     //   "startDate": 1737456000000,
@@ -113,7 +121,9 @@ exports.addLead = async (body, user) => {
 //     //   "filters": [
 //     //     { "field": "name", "operator": "contains", "value": "test" },
 //     //     { "field": "leadRating", "operator": "in", "value": [4,5] }
-//     //   ]
+//     //   ],
+//     //   "page": 1,
+//     //   "limit": 10
 //     // }
 //     const {
 //       searchField,
@@ -123,13 +133,13 @@ exports.addLead = async (body, user) => {
 //       startDate, // timestamp from frontend
 //       endDate, // timestamp from frontend
 //       filters = [], // dynamic filters
+//       page = 1,
+//       limit = 10,
 //     } = query;
 
 //     let whereClause = {};
 
-//     // -----------------------------------------
 //     // 1️⃣ SEARCH TEXT FIELD (KEEP)
-//     // -----------------------------------------
 //     if (searchField && searchText) {
 //       whereClause = {
 //         ...whereClause,
@@ -141,38 +151,29 @@ exports.addLead = async (body, user) => {
 //       };
 //     }
 
-//     // -----------------------------------------
+//     console.log("whereClausewhereClausewhereClause", whereClause);
 //     // 2️⃣ STATUS FILTER (KEEP)
-//     // -----------------------------------------
 //     if (statusIds) {
 //       const statusArray = statusIds.split(",").map(Number);
+//       console.log("statusArraystatusArraystatusArray", statusArray);
 //       whereClause.status_id = { [Op.in]: statusArray };
 //     }
 
-//     // -----------------------------------------
 //     // 3️⃣ ASSIGNEE FILTER (KEEP)
-//     // -----------------------------------------
 //     if (assignees) {
 //       const assigneeArray = assignees.split(",");
 //       whereClause.assignedTo = { [Op.in]: assigneeArray };
 //     }
 
-//     // -----------------------------------------
 //     // 4️⃣ TIMESTAMP DATE FILTER
-//     // -----------------------------------------
 //     if (startDate && endDate) {
 //       const start = new Date(Number(startDate));
 //       const end = new Date(Number(endDate));
-
-//       // Ensure end covers the full day
 //       end.setHours(23, 59, 59, 999);
-
 //       whereClause.createdAt = { [Op.between]: [start, end] };
 //     }
 
-//     // -----------------------------------------
 //     // 5️⃣ DYNAMIC UI FILTERS
-//     // -----------------------------------------
 //     const operatorMap = {
 //       equal: Op.eq,
 //       not_equal: Op.ne,
@@ -210,10 +211,13 @@ exports.addLead = async (body, user) => {
 //       }
 //     });
 
-//     // -----------------------------------------
-//     // 6️⃣ FINAL DB QUERY
-//     // -----------------------------------------
-//     const leads = await Lead.findAll({
+//     // 6️⃣ PAGINATION LOGIC
+//     const pageNumber = Number(page) || 1;
+//     const pageSize = Number(limit) || 10;
+//     const offset = (pageNumber - 1) * pageSize;
+
+//     // 7️⃣ FINAL DB QUERY WITH PAGINATION
+//     const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
 //       where: whereClause,
 //       attributes: {
 //         exclude: ["stage_id", "reason_id", "created_by"],
@@ -227,12 +231,20 @@ exports.addLead = async (body, user) => {
 //         },
 //       ],
 //       order: [["createdAt", "DESC"]],
+//       offset,
+//       limit: pageSize,
 //     });
 
 //     return {
 //       success: true,
 //       message: leads.length ? "Leads fetched successfully" : "No data found",
 //       data: leads,
+//       pagination: {
+//         total: totalCount,
+//         page: pageNumber,
+//         limit: pageSize,
+//         totalPages: Math.ceil(totalCount / pageSize),
+//       },
 //     };
 //   } catch (error) {
 //     return {
@@ -241,170 +253,6 @@ exports.addLead = async (body, user) => {
 //     };
 //   }
 // };
-
-
-exports.getAllLeads = async (query) => {
-  try {
-    // Example of query->    {
-    //   "statusIds": "1,3",
-    //   "assignees": "Shivam,Anuj",
-    // leadName : "shivam",
-    //   "startDate": 1737456000000,
-    //   "endDate": 1738020000000,
-    //   "filters": [
-    //     { "field": "name", "operator": "contains", "value": "test" },
-    //     { "field": "leadRating", "operator": "in", "value": [4,5] }
-    //   ],
-    //   "page": 1,
-    //   "limit": 10
-    // }
-    const {
-      searchField,
-      searchText,
-      statusIds,
-      assignees,
-      leadName,
-      leadWhtsMobilenumber,
-      startDate, // timestamp from frontend
-      endDate, // timestamp from frontend
-      filters = [], // dynamic filters
-      page = 1,
-      limit = 10,
-    } = query;
-
-    let whereClause = {};
-
-    // 1️⃣ SEARCH TEXT FIELD (KEEP)
-    if (searchField && searchText) {
-      whereClause = {
-        ...whereClause,
-        data: {
-          [Op.contains]: {
-            [searchField]: searchText,
-          },
-        },
-      };
-    }
-
-    // Add filter for leadName and leadWhtsMobilenumber if provided
-    if (leadName) {
-      // Filter on "name" field at root OR in "data" column's name key (Postgres JSONB)
-      whereClause = {
-        ...whereClause,
-        name: { [Op.iLike]: `%${leadName}%` },
-      };
-    }
-    if (leadWhtsMobilenumber) {
-      // Filter on "whatsapp_number" at root OR inside "data" column's whatsapp_number
-      whereClause = {
-        ...whereClause,
-        whatsapp_number: { [Op.iLike]: `%${leadWhtsMobilenumber}%` },
-      };
-    }
-
-    // 2️⃣ STATUS FILTER (KEEP)
-    if (statusIds) {
-      const statusArray = statusIds.split(",").map(Number);
-      whereClause.status_id = { [Op.in]: statusArray };
-    }
-
-    // 3️⃣ ASSIGNEE FILTER (KEEP)
-    if (assignees) {
-      const assigneeArray = assignees.split(",");
-      whereClause.assignedTo = { [Op.in]: assigneeArray };
-    }
-
-    // 4️⃣ TIMESTAMP DATE FILTER
-    if (startDate && endDate) {
-      const start = new Date(Number(startDate));
-      const end = new Date(Number(endDate));
-      end.setHours(23, 59, 59, 999);
-      whereClause.createdAt = { [Op.between]: [start, end] };
-    }
-
-    // 5️⃣ DYNAMIC UI FILTERS
-    const operatorMap = {
-      equal: Op.eq,
-      not_equal: Op.ne,
-      contains: Op.substring,
-      not_contains: Op.notLike,
-      begins_with: Op.startsWith,
-      not_begins_with: Op.notILike,
-      in: Op.in,
-      not_in: Op.notIn,
-      between: Op.between,
-      is_empty: "IS_EMPTY",
-      is_not_empty: "IS_NOT_EMPTY",
-    };
-
-    filters.forEach((filter) => {
-      const { field, operator, value } = filter;
-      const sequelizeOperator = operatorMap[operator];
-      if (!sequelizeOperator) return;
-
-      if (sequelizeOperator === "IS_EMPTY") {
-        whereClause[field] = { [Op.or]: [null, ""] };
-      } else if (sequelizeOperator === "IS_NOT_EMPTY") {
-        whereClause[field] = { [Op.ne]: null };
-      } else if (sequelizeOperator === Op.between) {
-        whereClause[field] = {
-          [Op.between]: [
-            new Date(Number(value[0])),
-            new Date(Number(value[1])),
-          ],
-        };
-      } else if (Array.isArray(value)) {
-        whereClause[field] = { [sequelizeOperator]: value };
-      } else {
-        whereClause[field] = { [sequelizeOperator]: value };
-      }
-    });
-
-    // 6️⃣ PAGINATION LOGIC
-    const pageNumber = Number(page) || 1;
-    const pageSize = Number(limit) || 10;
-    const offset = (pageNumber - 1) * pageSize;
-
-    // 7️⃣ FINAL DB QUERY WITH PAGINATION
-    const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
-      where: whereClause,
-      attributes: {
-        exclude: ["stage_id", "reason_id", "created_by"],
-      },
-      include: [
-        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
-        {
-          model: UserModel,
-          as: "assignedUser",
-          attributes: ["id", "name", "email"],
-        },
-      ],
-      order: [["createdAt", "DESC"]],
-      offset,
-      limit: pageSize,
-    });
-
-    return {
-      success: true,
-      message: leads.length ? "Leads fetched successfully" : "No data found",
-      data: leads,
-      pagination: {
-        total: totalCount,
-        page: pageNumber,
-        limit: pageSize,
-        totalPages: Math.ceil(totalCount / pageSize),
-      },
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message,
-    };
-  }
-};
-
-
-
 
 exports.getleadbyId = async (id) => {
   try {
@@ -442,117 +290,346 @@ exports.getleadbyId = async (id) => {
   }
 };
 
-exports.getAllLeads = async (query) => {
+
+exports.getAllLeads = async ({ query, body }) => {
   try {
-    // Example of query->    {
-    //   "statusIds": "1,3",
-    //   "assignees": "Shivam,Anuj",
-    //   "startDate": 1737456000000,
-    //   "endDate": 1738020000000,
-    //   "filters": [
-    //     { "field": "name", "operator": "contains", "value": "test" },
-    //     { "field": "leadRating", "operator": "in", "value": [4,5] }
-    //   ],
-    //   "page": 1,
-    //   "limit": 10
-    // }
     const {
+      
       searchField,
       searchText,
+      filters = [],
       statusIds,
       assignees,
-      startDate, // timestamp from frontend
-      endDate, // timestamp from frontend
-      filters = [], // dynamic filters
+      startDate, 
+      endDate,   
       page = 1,
       limit = 10,
-    } = query;
+    } = body;
 
-    let whereClause = {};
+    const whereClause = {};
+    const andConditions = [];
 
-    // 1️⃣ SEARCH TEXT FIELD (KEEP)
+    /* ==================================================
+       1️⃣ TOP SEARCH BAR (SEARCH_FIELD_MAP)
+    ================================================== */
     if (searchField && searchText) {
-      whereClause = {
-        ...whereClause,
-        data: {
-          [Op.contains]: {
-            [searchField]: searchText,
+      const fieldConfig = SEARCH_FIELD_MAP[searchField];
+
+      if (fieldConfig?.type === "fixed") {
+        andConditions.push({
+          [fieldConfig.column]: {
+            [Op.iLike]: `%${searchText}%`,
           },
-        },
-      };
-    }
-
-    // 2️⃣ STATUS FILTER (KEEP)
-    if (statusIds) {
-      const statusArray = statusIds.split(",").map(Number);
-      whereClause.status_id = { [Op.in]: statusArray };
-    }
-
-    // 3️⃣ ASSIGNEE FILTER (KEEP)
-    if (assignees) {
-      const assigneeArray = assignees.split(",");
-      whereClause.assignedTo = { [Op.in]: assigneeArray };
-    }
-
-    // 4️⃣ TIMESTAMP DATE FILTER
-    if (startDate && endDate) {
-      const start = new Date(Number(startDate));
-      const end = new Date(Number(endDate));
-      end.setHours(23, 59, 59, 999);
-      whereClause.createdAt = { [Op.between]: [start, end] };
-    }
-
-    // 5️⃣ DYNAMIC UI FILTERS
-    const operatorMap = {
-      equal: Op.eq,
-      not_equal: Op.ne,
-      contains: Op.substring,
-      not_contains: Op.notLike,
-      begins_with: Op.startsWith,
-      not_begins_with: Op.notILike,
-      in: Op.in,
-      not_in: Op.notIn,
-      between: Op.between,
-      is_empty: "IS_EMPTY",
-      is_not_empty: "IS_NOT_EMPTY",
-    };
-
-    filters.forEach((filter) => {
-      const { field, operator, value } = filter;
-      const sequelizeOperator = operatorMap[operator];
-      if (!sequelizeOperator) return;
-
-      if (sequelizeOperator === "IS_EMPTY") {
-        whereClause[field] = { [Op.or]: [null, ""] };
-      } else if (sequelizeOperator === "IS_NOT_EMPTY") {
-        whereClause[field] = { [Op.ne]: null };
-      } else if (sequelizeOperator === Op.between) {
-        whereClause[field] = {
-          [Op.between]: [
-            new Date(Number(value[0])),
-            new Date(Number(value[1])),
-          ],
-        };
-      } else if (Array.isArray(value)) {
-        whereClause[field] = { [sequelizeOperator]: value };
-      } else {
-        whereClause[field] = { [sequelizeOperator]: value };
+        });
       }
-    });
 
-    // 6️⃣ PAGINATION LOGIC
-    const pageNumber = Number(page) || 1;
-    const pageSize = Number(limit) || 10;
+      if (fieldConfig?.type === "jsonb") {
+        andConditions.push(
+          Sequelize.where(
+            Sequelize.cast(
+              Sequelize.json(`data.${fieldConfig.column}`),
+              "text"
+            ),
+            {
+              [Op.iLike]: `%${searchText}%`,
+            }
+          )
+        );
+      }
+    }
+
+    /* ==================================================
+       2️⃣ STATUS FILTER (SIMPLE)
+    ================================================== */
+    if (statusIds) {
+      andConditions.push({
+        status_id: {
+          [Op.in]: statusIds.split(",").map(Number),
+        },
+      });
+    }
+
+    /* ==================================================
+       3️⃣ ASSIGNEE FILTER
+    ================================================== */
+    if (assignees) {
+      andConditions.push({
+        assignedTo: {
+          [Op.in]: assignees.split(",").map(Number),
+        },
+      });
+    }
+
+    /* ==================================================
+       4️⃣ DATE FILTER (DIRECT DB MATCH – NO HELPER)
+       DD-MM-YYYY → PostgreSQL DATE()
+    ================================================== */
+    if (startDate && endDate) {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.fn("DATE", Sequelize.col("Lead.createdAt")),
+          {
+            [Op.between]: [
+              Sequelize.literal(`TO_DATE('${startDate}', 'DD-MM-YYYY')`),
+              Sequelize.literal(`TO_DATE('${endDate}', 'DD-MM-YYYY')`),
+            ],
+          }
+        )
+      );
+    }
+
+    /* ==================================================
+       5️⃣ DYNAMIC FILTER BUILDER (ANY FIELD)
+    ================================================== */
+    // filters.forEach(({ field, operator, value }) => {
+    //   const sequelizeOp = operatorMap[operator];
+    //   if (!sequelizeOp) return;
+    //   const isFixed = FIXED_FIELDS.includes(field);
+
+    //   // EMPTY
+    //   if (sequelizeOp === "IS_EMPTY") {
+    //     if (isFixed) {
+    //       andConditions.push({
+    //         [Op.or]: [{ [field]: null }, { [field]: "" }],
+    //       });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
+    //           ""
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+    //   // NOT EMPTY
+    //   if (sequelizeOp === "IS_NOT_EMPTY") {
+    //     if (isFixed) {
+    //       andConditions.push({ [field]: { [Op.ne]: null } });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.json(`data.${field}`),
+    //           { [Op.ne]: null }
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+    //   // BETWEEN (NON-DATE)
+    //   // BETWEEN
+    //   if (sequelizeOp === Op.between && Array.isArray(value)) {
+
+    //     // ✅ DATE FIELD FIX (createdAt / updatedAt)
+    //     if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
+    //       const [start, end] = value;
+
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
+    //           {
+    //             [Op.between]: [
+    //               Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
+    //               Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
+    //             ],
+    //           }
+    //         )
+    //       );
+    //       return;
+    //     }
+
+    //     // ✅ NORMAL BETWEEN (numbers, strings)
+    //     if (isFixed) {
+    //       andConditions.push({
+    //         [field]: { [Op.between]: value },
+    //       });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.json(`data.${field}`),
+    //           { [Op.between]: value }
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+
+    //   // IN / NOT IN
+    //   if (Array.isArray(value)) {
+    //     if (isFixed) {
+    //       andConditions.push({
+    //         [field]: { [sequelizeOp]: value },
+    //       });
+    //     } else {
+    //       andConditions.push(
+    //         Sequelize.where(
+    //           Sequelize.json(`data.${field}`),
+    //           { [sequelizeOp]: value }
+    //         )
+    //       );
+    //     }
+    //     return;
+    //   }
+
+    //   // NORMAL STRING / NUMBER
+    //   if (isFixed) {
+    //     andConditions.push({
+    //       [field]:
+    //         operator === "contains"
+    //           ? { [Op.iLike]: `%${value}%` }
+    //           : { [sequelizeOp]: value },
+    //     });
+    //   } else {
+    //     andConditions.push(
+    //       Sequelize.where(
+    //         Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
+    //         operator === "contains"
+    //           ? { [Op.iLike]: `%${value}%` }
+    //           : { [sequelizeOp]: value }
+    //       )
+    //     );
+    //   }
+    // });
+
+
+    filters.forEach(({ field, operator, value }) => {
+  const sequelizeOp = operatorMap[operator];
+  if (!sequelizeOp || !Array.isArray(value) || value.length === 0) return;
+
+  const isFixed = FIXED_FIELDS.includes(field);
+
+  /* ================= EMPTY ================= */
+  if (sequelizeOp === "IS_EMPTY") {
+    if (isFixed) {
+      andConditions.push({
+        [Op.or]: [{ [field]: null }, { [field]: "" }],
+      });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
+          ""
+        )
+      );
+    }
+    return;
+  }
+
+  /* ============== NOT EMPTY ================ */
+  if (sequelizeOp === "IS_NOT_EMPTY") {
+    if (isFixed) {
+      andConditions.push({ [field]: { [Op.ne]: null } });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.json(`data.${field}`),
+          { [Op.ne]: null }
+        )
+      );
+    }
+    return;
+  }
+
+  /* ================= BETWEEN ================= */
+  if (sequelizeOp === Op.between && value.length === 2) {
+    const [start, end] = value;
+
+    // DATE
+    if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
+          {
+            [Op.between]: [
+              Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
+              Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
+            ],
+          }
+        )
+      );
+      return;
+    }
+
+    // NORMAL BETWEEN
+    if (isFixed) {
+      andConditions.push({ [field]: { [Op.between]: value } });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.json(`data.${field}`),
+          { [Op.between]: value }
+        )
+      );
+    }
+    return;
+  }
+
+  /* ================= IN / NOT IN ================= */
+  if (sequelizeOp === Op.in || sequelizeOp === Op.notIn) {
+    if (isFixed) {
+      andConditions.push({ [field]: { [sequelizeOp]: value } });
+    } else {
+      andConditions.push(
+        Sequelize.where(
+          Sequelize.json(`data.${field}`),
+          { [sequelizeOp]: value }
+        )
+      );
+    }
+    return;
+  }
+
+  /* ========== SINGLE VALUE (array[0]) ========== */
+  const singleValue = value[0];
+
+  if (isFixed) {
+    andConditions.push({
+      [field]:
+        operator === "contains"
+          ? { [Op.iLike]: `%${singleValue}%` }
+          : { [sequelizeOp]: singleValue },
+    });
+  } else {
+    andConditions.push(
+      Sequelize.where(
+        Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
+        operator === "contains"
+          ? { [Op.iLike]: `%${singleValue}%` }
+          : { [sequelizeOp]: singleValue }
+      )
+    );
+  }
+});
+
+
+    /* ==================================================
+       APPLY ALL CONDITIONS
+    ================================================== */
+    if (andConditions.length) {
+      whereClause[Op.and] = andConditions;
+    }
+
+    /* ==================================================
+       PAGINATION
+    ================================================== */
+    const pageNumber = Number(page);
+    const pageSize = Number(limit);
     const offset = (pageNumber - 1) * pageSize;
 
-    // 7️⃣ FINAL DB QUERY WITH PAGINATION
-    const { rows: leads, count: totalCount } = await Lead.findAndCountAll({
+    /* ==================================================
+       FINAL QUERY
+    ================================================== */
+    const { rows, count } = await Lead.findAndCountAll({
       where: whereClause,
-      attributes: {
-        exclude: ["stage_id", "reason_id", "created_by"],
-      },
       include: [
-        { model: LeadStatus, as: "status", attributes: ["name", "color"] },
+        {
+          model: LeadStatus,
+          as: "status",
+          attributes: ["id", "name", "color"],
+        },
         {
           model: UserModel,
           as: "assignedUser",
@@ -566,16 +643,17 @@ exports.getAllLeads = async (query) => {
 
     return {
       success: true,
-      message: leads.length ? "Leads fetched successfully" : "No data found",
-      data: leads,
+      message: rows.length ? "Leads fetched successfully" : "No data found",
+      data: rows,
       pagination: {
-        total: totalCount,
+        total: count,
         page: pageNumber,
         limit: pageSize,
-        totalPages: Math.ceil(totalCount / pageSize),
+        totalPages: Math.ceil(count / pageSize),
       },
     };
   } catch (error) {
+    console.error("LEAD FILTER ERROR:", error);
     return {
       success: false,
       message: error.message,
@@ -584,8 +662,10 @@ exports.getAllLeads = async (query) => {
 };
 
 
+
 exports.changeStatus = async (body, params) => {
   try {
+    let dataTemp;
     const { leadId } = params;
     const { statusId } = body;
 
@@ -596,7 +676,6 @@ exports.changeStatus = async (body, params) => {
         message: "lead_id and status_id are required",
       };
     }
-
     // Check if the lead exists
     const leadData = await Lead.findByPk(leadId);
     if (!leadData) {
@@ -606,8 +685,7 @@ exports.changeStatus = async (body, params) => {
         message: "Lead not found",
       };
     }
-
-    // Check if the new status is valid
+    // Check if the new status is valid and has an associated stage
     const status = await LeadStatus.findByPk(statusId, {
       include: [{ model: LeadStage, as: "stage" }],
     });
@@ -619,47 +697,32 @@ exports.changeStatus = async (body, params) => {
       };
     }
 
-    // Workflow: check if this status has any workflow rules
-    const workflowRule = await WorkflowRules.findOne({
-      where: { Status_id: statusId },
-    });
+    console.log("leadDataleadDataleadData" , leadData);
+    
+     console.log("leadIdleadIdleadIdleadIdleadIdleadId" , leadId ,  statusId);
 
-    // If a workflow rule with template exists: log the template, add/update queue
-    if (workflowRule && workflowRule.action_data) {
-      // Console the template
-      console.log(
-        "Workflow Template for this status:",
-        workflowRule.action_data
-      );
+    // If there is no associated stage
+    if (!status.stage_id && (!status.stage || !status.stage.id)) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "leadstage is not associated to lead_statuses!",
+      };
+    }
 
-      // Find if there is already an entry in the queue for this (lead, workflowRule)
-      let queueEntry = await WorkFlowQueue.findOne({
-        where: {
-          lead_id: leadId,
-          workflow_ruleID: workflowRule.id,
-        },
-      });
-
-      if (queueEntry) {
-        // Update the status to 'processing'
-        await queueEntry.update({
-          Status: "executed",
-          executed_At: null,
-        });
-      } else {
-        // Create an entry in queue with 'processing' status for this lead and workflow rule
-        await WorkFlowQueue.create({
-          lead_id: leadId,
-          workflow_ruleID: workflowRule.id,
-          Status: "processing",
-        });
-      }
+    // Optionally pass both lead and new status for potential logic
+    if (typeof OnLeadStatusChange === "function") {
+      console.log("Calling OnLeadStatusChange function...");
+       dataTemp = await OnLeadStatusChange(leadData, statusId);
+      
+    } else {
+      console.log("OnLeadStatusChange is not a function:", typeof OnLeadStatusChange);
     }
 
     // Update the lead with new status and stage
     await leadData.update({
       status_id: status.id,
-      stage_id: status.stage_id,
+      stage_id: status.stage_id || (status.stage && status.stage.id),
     });
 
     const updatedLead = await Lead.findByPk(leadId, {
@@ -672,6 +735,7 @@ exports.changeStatus = async (body, params) => {
       message:
         resMessage.LEAD_STATUS_UPDATED || "Lead status updated successfully",
       data: updatedLead,
+      dataTemp      
     };
   } catch (error) {
     return {
@@ -1010,15 +1074,22 @@ exports.bulkAssignLeads = async (body) => {
 
 
 // Bulk Lead Upload Step 1: Upload File
-exports.uploadFile = async (body, user) => {
+exports.uploadFile = async (file, body, user) => {
+
+  console.log("filefilefile" , file);
+  
   try {
 
-    const upload = await BulkLeadUpload.create({
-      file_name: body.originalname,
-      file_path: body.path,
-      uploaded_by: user.id
-    });
-    // console.log("Upload record created:", upload.id);
+const upload = await BulkLeadUpload.create({
+  file_name: file.originalname,
+  
+  file_path: file.location, 
+  
+  uploaded_by: user?.id || null 
+});
+
+
+    console.log("Upload record created:", upload);
     return {
       message: "File uploaded successfully",
       statusCode: statusCode.OK,
@@ -1036,16 +1107,52 @@ exports.uploadFile = async (body, user) => {
   }
 };
 
+// exports.getSheets = async (uploadId) => {
+//   try {
+//     const upload = await BulkLeadUpload.findByPk(uploadId);
+//     console.log("Fetched upload record:", upload);
+//     const wb = XLSX.readFile(upload.file_path);
+//     const sheet = wb.SheetNames[0];
+//     const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1 })[0];
+//     console.log("Extracted headers:", headers);
+//     console.log("Sheet names:", wb.SheetNames);
+//     return {
+//       message: "Sheets fetched successfully",
+//       statusCode: statusCode.OK,
+//       success: true,
+//       sheets: wb.SheetNames,
+//       headers
+//     };
+//   } catch (error) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: error.message
+//     };
+//   }
+// };
+
 // Step 2: Get Sheets and Headers
 exports.getSheets = async (uploadId) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
-    console.log("Fetched upload record:", upload);
-    const wb = XLSX.readFile(upload.file_path);
-    const sheet = wb.SheetNames[0];
-    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1 })[0];
+if (!upload) throw new Error("Upload record not found");
+
+    console.log("Fetching file from S3:", upload.file_path);
+
+    // 1. Download the file from S3 as an ArrayBuffer
+    const response = await axios.get(upload.file_path, { responseType: 'arraybuffer' });
+    const buffer = response.data;
+
+    // 2. Use XLSX.read (NOT readFile) to parse the buffer
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+
+    const sheetName = wb.SheetNames[0];
+    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 })[0];
+
     console.log("Extracted headers:", headers);
-    console.log("Sheet names:", wb.SheetNames);
+
+    
     return {
       message: "Sheets fetched successfully",
       statusCode: statusCode.OK,
@@ -1163,7 +1270,7 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
     const leadsPayload = rows.map(row => {
       let assignedTo = null;
       const status_id = status ? status.id : null;
-      
+
       if (assignmentPlan) {
         if (currentUserRemaining === 0) {
           currentUserIndex++;

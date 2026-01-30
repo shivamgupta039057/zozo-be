@@ -16,11 +16,12 @@ exports.createLead = async ({ body, user }) => {
   }
 };
 
-exports.generateLead = async ({ query }) => {
-  console.log("yyyyyyyyyyyyyyyyyyyyyyyyyyyyy" , query);
-  
+exports.generateLead = async ({ user,query,body }) => {
+  // console.log("useruseruseruseruser" , user);
+ 
+  // console.log("queryyyyyyyyyyyyyyyyyyyyyyy" , query);
   try {
-    return await services.getAllLeads(query);
+    return await services.getAllLeads({query,body});
   } catch (error) {
     console.log("errorerror" , error);
     
@@ -91,9 +92,9 @@ exports.bulkAssignLeads = async ({ body }) => {
 
 
 // Bulk Lead Upload Step 1: Upload File
-exports.uploadFile = async ({ body, user }) => {
+exports.uploadFile = async ({ body, user, file }) => {
   try {
-    return await services.uploadFile(body, user);
+    return await services.uploadFile(file, body, user);
   } catch (error) {
     return {
       statusCode: 500,

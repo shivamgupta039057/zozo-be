@@ -1,5 +1,5 @@
 const executeAction = require("./executeAction");
-const handleCondition = require("./handleCondition");
+
 const WorkflowNode = require("../pgModels/workflow/workflowNode.model");
 const WorkflowEdge = require("../pgModels/workflow/workflowEdge.model");
 
@@ -21,11 +21,6 @@ module.exports = async function traverse(nodeId, lead, visited,status) {
 
   // Will hold the last non-undefined result from actions/children
   let result;
-
-  // if (node.node_type === "CONDITION") {
-  //   // Let conditions decide which branch to follow and propagate any result
-  //   result = await handleCondition(node, lead, visited);
-  // }
   if (node.node_type === "CONDITION") {
     const { field, operator, value } = node.data.selectedData || {};
 
