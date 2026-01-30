@@ -9,67 +9,161 @@ const { BroadcastLog } = require("../../pgModels/index");
 // Import socket.io instance for real-time messaging
 let io;
 
-const { getIO }  = require('../sockets/socketIntance');
+const { getIO } = require('../sockets/socketIntance');
 const { buildTemplatePayload } = require("../../utils/buildTemplatePayload");
 io = getIO(); // Returns null if not initialized (e.g., in worker processes)
 
 
+// exports.handleIncomingMessage = async (payload) => {
+
+// console.log("handleIncomingMessage payload:", payload);
+//   const value = payload?.entry?.[0]?.changes?.[0]?.value;
+
+//   console.log("Incoming WhatsApp payload:", value);
+//   if (!value) {
+//     return { statusCode: 200, success: true, message: "Invalid payload" };
+//   }
+//   // if (value.statuses && value.statuses.length > 0) {
+//   //   for (const s of value.statuses) {
+//   //     await BroadcastLog.create({
+//   //       phone: s.recipient_id,
+//   //       status: s.status,
+//   //       meta_response: s
+//   //     });
+//   //   }
+//   // }
+//   const message = value.messages?.[0];
+//   if (!message) {
+//     return {
+//       statusCode: 200,
+//       success: true,
+//       message: 'No message found in payload'
+//     };
+//   }
+
+//    const exists = await WhatsappMessage.findOne({
+//     where: { meta_message_id: message.id }
+//   });
+//   if (exists) {
+//     return {
+//       statusCode: 200,
+//       success: true,
+//       message: 'Message already processed'
+//     };
+//   }
+
+
+//   const phone = message.from;
+//   const text = message.text?.body || "";
+
+
+//   const numberMatch = phone.match(/\d+/);
+//   let whatsapp_number
+//   if (numberMatch) {
+//     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
+//     whatsapp_number = phoneNumber.nationalNumber
+//       // console.log("Country Code:", phoneNumber.countryCallingCode);
+//       // console.log("National Number:", phoneNumber.nationalNumber);
+//       // console.log("Country:", phoneNumber.country);
+
+//   }
+//   // 1️⃣ Find or create lead
+//   let lead = await Lead.findOne({ where: { whatsapp_number } });
+
+//   if (!lead) {
+//     lead = await Lead.create({
+//       whatsapp_number,
+//       source: "whatsapp"
+//     });
+//   }
+
+//   // 2️⃣ Chat
+//   let chat = await WhatsappChat.findOne({ where: { phone: whatsapp_number } });
+//   if (!chat) {
+//     chat = await WhatsappChat.create({
+//       phone: whatsapp_number,
+//       lead_id: lead.id,
+//       is_24h_active: true,
+//       last_message_at: new Date()
+//     });
+//   }
+
+//   // 3️⃣ Save message
+//   const savedMessage = await WhatsappMessage.create({
+//     chat_id: chat.id,
+//     direction: "IN",
+//     message_type: "text",
+//     content: text,
+//     meta_message_id: message.id
+//   });
+
+//   // 4️⃣ Update 24h window
+//   await chat.update({
+//     last_message_at: new Date(),
+//     is_24h_active: true
+//   });
+
+//   // 5️⃣ Emit socket event for real-time message display
+//   if (io) {
+//     const messageData = {
+//       id: savedMessage.id,
+//       chat_id: chat.id,
+//       direction: savedMessage.direction,
+//       message_type: savedMessage.message_type,
+//       content: savedMessage.content,
+//       createdAt: savedMessage.createdAt,
+//       updatedAt: savedMessage.updatedAt
+//     };
+//     if (io) {
+
+//       io.to(`${chat.id}`).emit('newMessage', messageData);
+//       // Also emit to update chat list
+//       // io.emit('chatUpdated', {
+//       //   chat_id: chat.id,
+//       //   last_message_at: chat.last_message_at,
+//       //   unread_count: chat.unread_count || 0
+//       // });
+//     }
+//   }
+
+//   return {
+//     statusCode: 200,
+//     success: true,
+//     message: 'Message received and processed',
+//     data: {
+//       chat_id: chat.id,
+//       message_id: savedMessage.id
+//     }
+//   };
+// };
+
 exports.handleIncomingMessage = async (payload) => {
+  const io = getIO();
 
-console.log("handleIncomingMessage payload:", payload);
   const value = payload?.entry?.[0]?.changes?.[0]?.value;
+  if (!value) return { success: true };
 
-  console.log("Incoming WhatsApp payload:", value);
-  if (!value) {
-    return { statusCode: 200, success: true, message: "Invalid payload" };
-  }
-  // if (value.statuses && value.statuses.length > 0) {
-  //   for (const s of value.statuses) {
-  //     await BroadcastLog.create({
-  //       phone: s.recipient_id,
-  //       status: s.status,
-  //       meta_response: s
-  //     });
-  //   }
-  // }
   const message = value.messages?.[0];
-  if (!message) {
-    return {
-      statusCode: 200,
-      success: true,
-      message: 'No message found in payload'
-    };
-  }
+  if (!message) return { success: true };
 
-   const exists = await WhatsappMessage.findOne({
+  // DUPLICATE CHECK
+  const exists = await WhatsappMessage.findOne({
     where: { meta_message_id: message.id }
   });
-  if (exists) {
-    return {
-      statusCode: 200,
-      success: true,
-      message: 'Message already processed'
-    };
-  }
-  
+  if (exists) return { success: true };
 
   const phone = message.from;
   const text = message.text?.body || "";
 
-
   const numberMatch = phone.match(/\d+/);
-  let whatsapp_number
+  let whatsapp_number;
   if (numberMatch) {
     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
-    whatsapp_number = phoneNumber.nationalNumber
-      // console.log("Country Code:", phoneNumber.countryCallingCode);
-      // console.log("National Number:", phoneNumber.nationalNumber);
-      // console.log("Country:", phoneNumber.country);
-    
+    whatsapp_number = phoneNumber.nationalNumber;
   }
-  // 1️⃣ Find or create lead
-  let lead = await Lead.findOne({ where: { whatsapp_number } });
 
+  // LEAD
+  let lead = await Lead.findOne({ where: { whatsapp_number } });
   if (!lead) {
     lead = await Lead.create({
       whatsapp_number,
@@ -77,17 +171,24 @@ console.log("handleIncomingMessage payload:", payload);
     });
   }
 
-  // 2️⃣ Chat
-  let chat = await WhatsappChat.findOne({ where: { phone: whatsapp_number } });
+  // CHAT
+  let chat = await WhatsappChat.findOne({
+    where: { phone: whatsapp_number }
+  });
+
+  const isNewChat = !chat;
+
   if (!chat) {
     chat = await WhatsappChat.create({
       phone: whatsapp_number,
       lead_id: lead.id,
+      unread_count: 0,
+      is_24h_active: true,
       last_message_at: new Date()
     });
   }
 
-  // 3️⃣ Save message
+  // SAVE MESSAGE
   const savedMessage = await WhatsappMessage.create({
     chat_id: chat.id,
     direction: "IN",
@@ -96,179 +197,294 @@ console.log("handleIncomingMessage payload:", payload);
     meta_message_id: message.id
   });
 
-  // 4️⃣ Update 24h window
+  // UPDATE CHAT
   await chat.update({
+    last_message: text,
     last_message_at: new Date(),
+    unread_count: chat.unread_count + 1,
     is_24h_active: true
   });
 
-  // 5️⃣ Emit socket event for real-time message display
+  // 🔥 SOCKET EVENTS
   if (io) {
-    const messageData = {
+    // MESSAGE EVENT (chat open view)
+    io.to(String(chat.id)).emit("newMessage", {
       id: savedMessage.id,
       chat_id: chat.id,
-      direction: savedMessage.direction,
-      message_type: savedMessage.message_type,
-      content: savedMessage.content,
-      createdAt: savedMessage.createdAt,
-      updatedAt: savedMessage.updatedAt
-    };
-    if (io) {
-   
-      io.to(`${chat.id}`).emit('newMessage', messageData);
-      // Also emit to update chat list
-      // io.emit('chatUpdated', {
-      //   chat_id: chat.id,
-      //   last_message_at: chat.last_message_at,
-      //   unread_count: chat.unread_count || 0
-      // });
-    }
+      direction: "IN",
+      content: text,
+      createdAt: savedMessage.createdAt
+    });
+
+    // CHAT LIST UPDATE (🔥 WITHOUT API)
+    io.emit("chatUpdated", {
+      chat_id: chat.id,
+      phone: chat.phone,
+      last_message: text,
+      last_message_at: chat.last_message_at,
+      unread_count: chat.unread_count + 1,
+      is_new_chat: isNewChat
+    });
   }
 
-  return {
-    statusCode: 200,
-    success: true,
-    message: 'Message received and processed',
-    data: {
-      chat_id: chat.id,
-      message_id: savedMessage.id
-    }
-  };
+  return { success: true };
 };
+
+// exports.sendText = async ({ phone, text }) => {
+//   console.log("phone, textphone, textphone, text", phone, text);
+
+//   try {
+
+
+//     const chat = await getOrCreateChat(phone);
+
+
+//     // 🚫 24-hour window check
+//     if (!chat.is_24h_active) {
+//       return {
+//         success: false,
+//         message: "24-hour window expired. Text message not allowed. Please send a template message."
+//       };
+//     }
+
+//     const response = await axios.post(
+//       API_URL,
+//       {
+//         messaging_product: "whatsapp",
+//         to: phone,
+//         type: "text", // 🔥 REQUIRED
+//         text: {
+//           body: text
+//         }
+//       },
+//       {
+//         headers: {
+//           Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+//           "Content-Type": "application/json"
+//         }
+
+//       }
+//     );
+//     console.log("responseresponseresponse", response);
+
+//     const savedMessage = await WhatsappMessage.create({
+//       chat_id: chat.id,
+//       direction: "OUT",
+//       message_type: "text",
+//       content: text,
+//       meta_message_id: response.data?.messages?.[0]?.id // WhatsApp message id
+//     });
+
+//     // 4️⃣ Update chat
+//     await chat.update({
+//       last_message_at: new Date(),
+//       is_24h_active: true
+//     });
+
+//     // 5️⃣ Emit socket event for real-time message display
+//     if (io) {
+//       const messageData = {
+//         id: savedMessage.id,
+//         chat_id: chat.id,
+//         direction: savedMessage.direction,
+//         message_type: savedMessage.message_type,
+//         content: savedMessage.content,
+//         createdAt: savedMessage.createdAt,
+//         updatedAt: savedMessage.updatedAt
+//       };
+//       console.log("Emitting to room:", chat.id);
+//       console.log("Message Data:", messageData);
+//       io.to(`${chat.id}`).emit('newMessage', messageData);
+//       // Also emit to update chat list
+//       // io.emit('chatUpdated', {
+//       //   chat_id: chat.id,
+//       //   last_message_at: chat.last_message_at,
+//       //   unread_count: chat.unread_count || 0
+//       // });
+//     }
+
+//     return response.data;
+//   } catch (error) {
+//     console.error("Error sending WhatsApp text:", error);
+//     throw error;
+//   }
+// };
 
 
 exports.sendText = async ({ phone, text }) => {
-  console.log("phone, textphone, textphone, text" , phone, text);
-  
-  try {
-
-      const chat = await getOrCreateChat(phone);
-    const response = await axios.post(
-      API_URL,
-      {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text", // 🔥 REQUIRED
-        text: {
-          body: text
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json"
-        }
-        
-      }
-    );
-    console.log("responseresponseresponse" , response);
-    
-   const savedMessage = await WhatsappMessage.create({
-      chat_id: chat.id,
-      direction: "OUT",
-      message_type: "text",
-      content: text,
-      meta_message_id: response.data?.messages?.[0]?.id // WhatsApp message id
-    });
-
-    // 4️⃣ Update chat
-    await chat.update({
-      last_message_at: new Date(),
-      is_24h_active: true
-    });
-
-    // 5️⃣ Emit socket event for real-time message display
-    if (io) {
-      const messageData = {
-        id: savedMessage.id,
-        chat_id: chat.id,
-        direction: savedMessage.direction,
-        message_type: savedMessage.message_type,
-        content: savedMessage.content,
-        createdAt: savedMessage.createdAt,
-        updatedAt: savedMessage.updatedAt
-      };
-      console.log("Emitting to room:", chat.id);
-      console.log("Message Data:", messageData);
-      io.to(`${chat.id}`).emit('newMessage', messageData);
-      // Also emit to update chat list
-      // io.emit('chatUpdated', {
-      //   chat_id: chat.id,
-      //   last_message_at: chat.last_message_at,
-      //   unread_count: chat.unread_count || 0
-      // });
-    }
-    
-    return response.data;
-  } catch (error) {
-    console.error("Error sending WhatsApp text:", error);
-    throw error;
-  }
-};
-
-exports.sendTemplate = async ({ phone, template_name, language = "en_US", }) => {
-  try {
+  const io = getIO();
 
   const chat = await getOrCreateChat(phone);
-    const response = await axios.post(
-      API_URL,
-      {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "template", // 🔥 REQUIRED
-        template: {
-          name: template_name,
-          language: { code: language },
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          "Content-Type": "application/json"
-        }
+
+  if (!chat.is_24h_active) {
+    return {
+      success: false,
+      message: "24h window expired"
+    };
+  }
+
+  const response = await axios.post(
+    API_URL,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "text",
+      text: { body: text }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json"
       }
-    );
-    const savedMessage = await WhatsappMessage.create({
+    }
+  );
+
+  const savedMessage = await WhatsappMessage.create({
+    chat_id: chat.id,
+    direction: "OUT",
+    message_type: "text",
+    content: text,
+    meta_message_id: response.data?.messages?.[0]?.id
+  });
+
+  await chat.update({
+    last_message: text,
+    last_message_at: new Date()
+  });
+
+  if (io) {
+    io.to(String(chat.id)).emit("newMessage", {
+      id: savedMessage.id,
       chat_id: chat.id,
       direction: "OUT",
-      message_type: "template",
-      content: template_name,
-      meta_message_id: response.data?.messages?.[0]?.id
+      content: text
     });
 
-    await chat.update({
-      last_message_at: new Date(),
-      is_24h_active: true
+    // 🔥 CHAT LIST UPDATE
+    io.emit("chatUpdated", {
+      chat_id: chat.id,
+      phone: chat.phone,
+      last_message: text,
+      last_message_at: chat.last_message_at,
+      unread_count: chat.unread_count
     });
-
-    // Emit socket event for real-time message display
-    if (io) {
-      const messageData = {
-        id: savedMessage.id,
-        chat_id: chat.id,
-        direction: savedMessage.direction,
-        message_type: savedMessage.message_type,
-        content: savedMessage.content,
-        createdAt: savedMessage.createdAt,
-        updatedAt: savedMessage.updatedAt
-      };
-      io.to(`${chat.id}`).emit('newMessage', messageData);
-      // Also emit to update chat list
-      // io.emit('chatUpdated', {
-      // //   chat_id: chat.id,
-      // //   last_message_at: chat.last_message_at,
-      // //   unread_count: chat.unread_count || 0
-      // });
-    }
-
-    return response.data;
-
-  } catch (error) {
-    console.error("Error sending WhatsApp template:", error);
-    throw error;
   }
+
+  return response.data;
 };
 
+// exports.sendTemplate = async ({ phone, template_name, language = "en_US", }) => {
+//   try {
+
+//     const chat = await getOrCreateChat(phone);
+//     const response = await axios.post(
+//       API_URL,
+//       {
+//         messaging_product: "whatsapp",
+//         to: phone,
+//         type: "template", // 🔥 REQUIRED
+//         template: {
+//           name: template_name,
+//           language: { code: language },
+//         }
+//       },
+//       {
+//         headers: {
+//           Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+//           "Content-Type": "application/json"
+//         }
+//       }
+//     );
+//     const savedMessage = await WhatsappMessage.create({
+//       chat_id: chat.id,
+//       direction: "OUT",
+//       message_type: "template",
+//       content: template_name,
+//       meta_message_id: response.data?.messages?.[0]?.id
+//     });
+
+//     await chat.update({
+//       last_message_at: new Date(),
+//       is_24h_active: true
+//     });
+
+//     // Emit socket event for real-time message display
+//     if (io) {
+//       const messageData = {
+//         id: savedMessage.id,
+//         chat_id: chat.id,
+//         direction: savedMessage.direction,
+//         message_type: savedMessage.message_type,
+//         content: savedMessage.content,
+//         createdAt: savedMessage.createdAt,
+//         updatedAt: savedMessage.updatedAt
+//       };
+//       io.to(`${chat.id}`).emit('newMessage', messageData);
+//       // Also emit to update chat list
+//       // io.emit('chatUpdated', {
+//       // //   chat_id: chat.id,
+//       // //   last_message_at: chat.last_message_at,
+//       // //   unread_count: chat.unread_count || 0
+//       // });
+//     }
+
+//     return response.data;
+
+//   } catch (error) {
+//     console.error("Error sending WhatsApp template:", error);
+//     throw error;
+//   }
+// };
+
+exports.sendTemplate = async ({ phone, template_name, language = "en_US" }) => {
+  const io = getIO();
+
+  const chat = await getOrCreateChat(phone);
+
+  const response = await axios.post(
+    API_URL,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        name: template_name,
+        language: { code: language }
+      }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+  const savedMessage = await WhatsappMessage.create({
+    chat_id: chat.id,
+    direction: "OUT",
+    message_type: "template",
+    content: template_name,
+    meta_message_id: response.data?.messages?.[0]?.id
+  });
+
+  await chat.update({
+    last_message: template_name,
+    last_message_at: new Date()
+  });
+
+  if (io) {
+    io.emit("chatUpdated", {
+      chat_id: chat.id,
+      phone: chat.phone,
+      last_message: template_name,
+      last_message_at: chat.last_message_at,
+      unread_count: chat.unread_count
+    });
+  }
+
+  return response.data;
+};
 
 
 exports.getChat = async () => {
@@ -301,8 +517,8 @@ exports.getChat = async () => {
 
 
 exports.getTemplates = async (query) => {
-  console.log("ddddddddddddddddddddddddddddddddddd" , query);
-  
+  console.log("ddddddddddddddddddddddddddddddddddd", query);
+
   try {
     const response = await axios.get(
       API_URL_TEMPLATE,
@@ -314,8 +530,8 @@ exports.getTemplates = async (query) => {
       }
     );
 
-    console.log("`responseresponseresponse`" , response.data);
-    
+    console.log("`responseresponseresponse`", response.data);
+
 
     return {
       statusCode: 200,
@@ -357,28 +573,62 @@ exports.getMessagesByChatId = async (params) => {
 
 
 
+// async function getOrCreateChat(phone) {
+//   console.log("ddddddddddddddddddddddddddddddddddddd", phone);
+
+//   const numberMatch = phone.match(/\d+/);
+
+//   console.log("numberMatchnumberMatchnumberMatch", numberMatch);
+
+//   let whatsapp_number
+//   if (numberMatch) {
+//     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
+//     whatsapp_number = phoneNumber.nationalNumber
+//   }
+
+//   console.log("whatsapp_numberwhatsapp_numberwhatsapp_number", whatsapp_number);
+
+
+//   let lead = await Lead.findOne({ where: { whatsapp_number } });
+
+//   console.log("leadleadleadleadlead", lead);
+
+
+
+//   if (!lead) {
+//     lead = await Lead.create({
+//       whatsapp_number,
+//       source: "whatsapp"
+//     });
+//   }
+
+//   let chat = await WhatsappChat.findOne({
+//     where: { phone: whatsapp_number }
+//   });
+
+//   console.log(chat, "chhhhhhh")
+
+//   if (!chat) {
+//     chat = await WhatsappChat.create({
+//       phone: whatsapp_number,
+//       lead_id: lead.id,
+//       last_message_at: new Date(),
+//       // is_24h_active: true
+//     });
+//   }
+
+//   return chat;
+// }
 async function getOrCreateChat(phone) {
-console.log("ddddddddddddddddddddddddddddddddddddd" , phone);
+  const numberMatch = phone.match(/\d+/);
+  let whatsapp_number;
 
-    const numberMatch = phone.match(/\d+/);
-
-    console.log("numberMatchnumberMatchnumberMatch" , numberMatch);
-    
-  let whatsapp_number
   if (numberMatch) {
     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
-    whatsapp_number = phoneNumber.nationalNumber
+    whatsapp_number = phoneNumber.nationalNumber;
   }
 
-  console.log("whatsapp_numberwhatsapp_numberwhatsapp_number" , whatsapp_number);
-  
-
   let lead = await Lead.findOne({ where: { whatsapp_number } });
-
-  console.log("leadleadleadleadlead" , lead);
-  
-
-
   if (!lead) {
     lead = await Lead.create({
       whatsapp_number,
@@ -390,12 +640,11 @@ console.log("ddddddddddddddddddddddddddddddddddddd" , phone);
     where: { phone: whatsapp_number }
   });
 
-  console.log(chat,"chhhhhhh")
-
   if (!chat) {
     chat = await WhatsappChat.create({
       phone: whatsapp_number,
       lead_id: lead.id,
+      unread_count: 0,
       last_message_at: new Date(),
       is_24h_active: true
     });
@@ -411,7 +660,7 @@ exports.createTemplate = async (req, res) => {
   try {
     const payload = buildTemplatePayload(req.body);
 
-    console.log("ssssssssssspayloadpayloadpayload" , payload);
+    console.log("ssssssssssspayloadpayloadpayload", payload);
 
     const response = await axios.post(
       API_URL_TEMPLATE,
@@ -424,8 +673,8 @@ exports.createTemplate = async (req, res) => {
       }
     );
 
-    console.log("responseresponseresponseresponseresponseresponse" , response);
-    
+    console.log("responseresponseresponseresponseresponseresponse", response);
+
 
     return res.json({
       success: true,

@@ -32,6 +32,9 @@ const LeadStage = require('./LeadStages/LeadStage');
 const LeadStatus = require('./LeadStages/LeadStatus');
 const LeadReason = require('./LeadStages/leadReason');
 
+// WhatsApp Models
+const { WhatsappChat, WhatsappMessage, WhatsappTemplate } = require('./whatsapp');
+
 // =========================
 // Model Initialization
 // =========================
@@ -168,5 +171,8 @@ module.exports = {
     LeadStage,
     LeadStatus,
     LeadReason,
-    BulkLeadUpload
+    BulkLeadUpload,
+    WhatsappChat,
+    WhatsappMessage,
+    WhatsappTemplate
 };
