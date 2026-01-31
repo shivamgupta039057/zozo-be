@@ -188,10 +188,11 @@ exports.sendText = async ({ phone, text }) => {
 };
 
 
-exports.sendTemplate = async ({ phone, template_name, language = "en_US" }) => {
+exports.sendTemplate = async ({ phone, template_name, language }) => {
   const io = getIO();
 
   const chat = await getOrCreateChat(phone);
+
 
   const response = await axios.post(
     API_URL,
@@ -449,7 +450,6 @@ exports.getMessagesByChatId = async (params) => {
 async function getOrCreateChat(phone) {
   const numberMatch = phone.match(/\d+/);
   let whatsapp_number;
-
   if (numberMatch) {
     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
     whatsapp_number = phoneNumber.nationalNumber;

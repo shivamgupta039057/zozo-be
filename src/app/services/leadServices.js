@@ -710,13 +710,7 @@ exports.changeStatus = async (body, params) => {
     if (typeof OnLeadStatusChange === "function") {
       console.log("Calling OnLeadStatusChange function...");
       dataTemp = await OnLeadStatusChange(leadData, statusId);
-    } else {
-      console.log(
-        "OnLeadStatusChange is not a function:",
-        typeof OnLeadStatusChange,
-      );
     }
-
     // Update the lead with new status and stage
     await leadData.update({
       status_id: status.id,
