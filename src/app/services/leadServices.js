@@ -7,7 +7,7 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { parseExcel, buildLeadPayload, buildAssignmentPlan } = require("../../utils/leadBulkInsert");
+const { parseExcel, buildLeadPayload, buildAssignmentPlan, parseExcelFromS3 } = require("../../utils/leadBulkInsert");
 const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap } = require("../../utils/filerDynamic");
 const { default: axios } = require("axios");
 const OnLeadStatusChange = require("../../utils/OnLeadStatusChange");
@@ -294,14 +294,14 @@ exports.getleadbyId = async (id) => {
 exports.getAllLeads = async ({ query, body }) => {
   try {
     const {
-      
+
       searchField,
       searchText,
       filters = [],
       statusIds,
       assignees,
-      startDate, 
-      endDate,   
+      startDate,
+      endDate,
       page = 1,
       limit = 10,
     } = body;
@@ -496,113 +496,113 @@ exports.getAllLeads = async ({ query, body }) => {
 
 
     filters.forEach(({ field, operator, value }) => {
-  const sequelizeOp = operatorMap[operator];
-  if (!sequelizeOp || !Array.isArray(value) || value.length === 0) return;
+      const sequelizeOp = operatorMap[operator];
+      if (!sequelizeOp || !Array.isArray(value) || value.length === 0) return;
 
-  const isFixed = FIXED_FIELDS.includes(field);
+      const isFixed = FIXED_FIELDS.includes(field);
 
-  /* ================= EMPTY ================= */
-  if (sequelizeOp === "IS_EMPTY") {
-    if (isFixed) {
-      andConditions.push({
-        [Op.or]: [{ [field]: null }, { [field]: "" }],
-      });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
-          ""
-        )
-      );
-    }
-    return;
-  }
+      /* ================= EMPTY ================= */
+      if (sequelizeOp === "IS_EMPTY") {
+        if (isFixed) {
+          andConditions.push({
+            [Op.or]: [{ [field]: null }, { [field]: "" }],
+          });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
+              ""
+            )
+          );
+        }
+        return;
+      }
 
-  /* ============== NOT EMPTY ================ */
-  if (sequelizeOp === "IS_NOT_EMPTY") {
-    if (isFixed) {
-      andConditions.push({ [field]: { [Op.ne]: null } });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.json(`data.${field}`),
-          { [Op.ne]: null }
-        )
-      );
-    }
-    return;
-  }
+      /* ============== NOT EMPTY ================ */
+      if (sequelizeOp === "IS_NOT_EMPTY") {
+        if (isFixed) {
+          andConditions.push({ [field]: { [Op.ne]: null } });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [Op.ne]: null }
+            )
+          );
+        }
+        return;
+      }
 
-  /* ================= BETWEEN ================= */
-  if (sequelizeOp === Op.between && value.length === 2) {
-    const [start, end] = value;
+      /* ================= BETWEEN ================= */
+      if (sequelizeOp === Op.between && value.length === 2) {
+        const [start, end] = value;
 
-    // DATE
-    if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
-          {
-            [Op.between]: [
-              Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
-              Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
-            ],
-          }
-        )
-      );
-      return;
-    }
+        // DATE
+        if (isFixed && ["createdAt", "updatedAt"].includes(field)) {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.fn("DATE", Sequelize.col(`Lead.${field}`)),
+              {
+                [Op.between]: [
+                  Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
+                  Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
+                ],
+              }
+            )
+          );
+          return;
+        }
 
-    // NORMAL BETWEEN
-    if (isFixed) {
-      andConditions.push({ [field]: { [Op.between]: value } });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.json(`data.${field}`),
-          { [Op.between]: value }
-        )
-      );
-    }
-    return;
-  }
+        // NORMAL BETWEEN
+        if (isFixed) {
+          andConditions.push({ [field]: { [Op.between]: value } });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [Op.between]: value }
+            )
+          );
+        }
+        return;
+      }
 
-  /* ================= IN / NOT IN ================= */
-  if (sequelizeOp === Op.in || sequelizeOp === Op.notIn) {
-    if (isFixed) {
-      andConditions.push({ [field]: { [sequelizeOp]: value } });
-    } else {
-      andConditions.push(
-        Sequelize.where(
-          Sequelize.json(`data.${field}`),
-          { [sequelizeOp]: value }
-        )
-      );
-    }
-    return;
-  }
+      /* ================= IN / NOT IN ================= */
+      if (sequelizeOp === Op.in || sequelizeOp === Op.notIn) {
+        if (isFixed) {
+          andConditions.push({ [field]: { [sequelizeOp]: value } });
+        } else {
+          andConditions.push(
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [sequelizeOp]: value }
+            )
+          );
+        }
+        return;
+      }
 
-  /* ========== SINGLE VALUE (array[0]) ========== */
-  const singleValue = value[0];
+      /* ========== SINGLE VALUE (array[0]) ========== */
+      const singleValue = value[0];
 
-  if (isFixed) {
-    andConditions.push({
-      [field]:
-        operator === "contains"
-          ? { [Op.iLike]: `%${singleValue}%` }
-          : { [sequelizeOp]: singleValue },
+      if (isFixed) {
+        andConditions.push({
+          [field]:
+            operator === "contains"
+              ? { [Op.iLike]: `%${singleValue}%` }
+              : { [sequelizeOp]: singleValue },
+        });
+      } else {
+        andConditions.push(
+          Sequelize.where(
+            Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
+            operator === "contains"
+              ? { [Op.iLike]: `%${singleValue}%` }
+              : { [sequelizeOp]: singleValue }
+          )
+        );
+      }
     });
-  } else {
-    andConditions.push(
-      Sequelize.where(
-        Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
-        operator === "contains"
-          ? { [Op.iLike]: `%${singleValue}%` }
-          : { [sequelizeOp]: singleValue }
-      )
-    );
-  }
-});
 
 
     /* ==================================================
@@ -697,9 +697,9 @@ exports.changeStatus = async (body, params) => {
       };
     }
 
-    console.log("leadDataleadDataleadData" , leadData);
-    
-     console.log("leadIdleadIdleadIdleadIdleadIdleadId" , leadId ,  statusId);
+    // console.log("leadDataleadDataleadData", leadData);
+
+    // console.log("leadIdleadIdleadIdleadIdleadIdleadId", leadId, statusId);
 
     // If there is no associated stage
     if (!status.stage_id && (!status.stage || !status.stage.id)) {
@@ -713,8 +713,8 @@ exports.changeStatus = async (body, params) => {
     // Optionally pass both lead and new status for potential logic
     if (typeof OnLeadStatusChange === "function") {
       console.log("Calling OnLeadStatusChange function...");
-       dataTemp = await OnLeadStatusChange(leadData, statusId);
-      
+      dataTemp = await OnLeadStatusChange(leadData, statusId);
+
     } else {
       console.log("OnLeadStatusChange is not a function:", typeof OnLeadStatusChange);
     }
@@ -735,7 +735,7 @@ exports.changeStatus = async (body, params) => {
       message:
         resMessage.LEAD_STATUS_UPDATED || "Lead status updated successfully",
       data: updatedLead,
-      dataTemp      
+      dataTemp
     };
   } catch (error) {
     return {
@@ -1076,17 +1076,17 @@ exports.bulkAssignLeads = async (body) => {
 // Bulk Lead Upload Step 1: Upload File
 exports.uploadFile = async (file, body, user) => {
 
-  console.log("filefilefile" , file);
-  
+  console.log("filefilefile", file);
+
   try {
 
-const upload = await BulkLeadUpload.create({
-  file_name: file.originalname,
-  
-  file_path: file.location, 
-  
-  uploaded_by: user?.id || null 
-});
+    const upload = await BulkLeadUpload.create({
+      file_name: file.originalname,
+
+      file_path: file.location,
+
+      uploaded_by: user?.id || null
+    });
 
 
     console.log("Upload record created:", upload);
@@ -1136,7 +1136,7 @@ const upload = await BulkLeadUpload.create({
 exports.getSheets = async (uploadId) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
-if (!upload) throw new Error("Upload record not found");
+    if (!upload) throw new Error("Upload record not found");
 
     console.log("Fetching file from S3:", upload.file_path);
 
@@ -1152,7 +1152,7 @@ if (!upload) throw new Error("Upload record not found");
 
     console.log("Extracted headers:", headers);
 
-    
+
     return {
       message: "Sheets fetched successfully",
       statusCode: statusCode.OK,
@@ -1183,7 +1183,11 @@ exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
     });
 
     const upload = await BulkLeadUpload.findByPk(uploadId);
-    const rows = parseExcel(upload.file_path, sheet);
+    // const rows = parseExcel(upload.file_path, sheet);
+    const rows = await parseExcelFromS3(
+      upload.file_path,
+      sheet
+    );
     const numbers = rows.map(r => r[mapping.whatsapp_number]);
     const duplicates = await Lead.findAll({
       where: { whatsapp_number: { [Op.in]: numbers } },
@@ -1240,7 +1244,11 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
       };
     }
 
-    const rows = parseExcel(upload.file_path, sheet);
+    // const rows = parseExcel(upload.file_path, sheet);
+    const rows = await parseExcelFromS3(
+      upload.file_path,
+      sheet
+    );
     if (!rows.length) {
       return {
         statusCode: statusCode.BAD_REQUEST,

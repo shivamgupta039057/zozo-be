@@ -5,7 +5,7 @@ const traverse = require("./traverse.js");
 module.exports = async function OnLeadStatusChange(lead, status) {
   console.log("Lead status changed:", status);
 
-  console.log(lead,"leaddddd")
+  // console.log(lead,"leaddddd")
   // 1. Find workflows (nodes) whose trigger matches this lead status.
   const triggerNodes = await WorkflowNode.findAll({
     where: {
@@ -14,14 +14,13 @@ module.exports = async function OnLeadStatusChange(lead, status) {
     },
   });
 
-  console.log("triggerNodestriggerNodestriggerNodes", triggerNodes);
+  // console.log("triggerNodestriggerNodestriggerNodes", triggerNodes);
 
   if (!triggerNodes || triggerNodes.length === 0) return null;
   const results = [];
 
   for (const trigger of triggerNodes) {
-    const nodeId =
-      trigger.node_id || (trigger.dataValues && trigger.dataValues.node_id);
+    const nodeId =trigger.node_id || (trigger.dataValues && trigger.dataValues.node_id);
     const leadData = lead && lead.dataValues ? lead.dataValues : lead;
 
     // console.log("nodeIdnodeIdnodeIdnodeIdnodeId", nodeId, leadData);
