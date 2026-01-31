@@ -42,14 +42,14 @@ module.exports = async function traverse(nodeId, lead, visited,status) {
         break;
     }
 
-    // console.log(conditionResult,"resulttttttttttt")
+
     const edge = await WorkflowEdge.findOne({
       where: {
         source: node.node_id,
         condition: conditionResult ? "YES" : "NO"
       }
     });
-    // console.log(edge,"eddddddddddddddddd")
+  
 
     if (edge) {
       return traverse(edge.target, lead, visited,status);
@@ -58,6 +58,17 @@ module.exports = async function traverse(nodeId, lead, visited,status) {
   else if (node.node_type === "ACTION") {
     // Capture any return value from the action (e.g. selectedData.label)
     result = await executeAction(node, lead,status);
+    
+    // ⛔ HARD STOP → do not go further
+    if (result === "__STOP__") {
+      console.log("🛑 Traversal stopped at node:", node.node_id);
+      return;
+    }
+
+    // "__CONTINUE__" indicates to keep going without capturing result
+    if (result !== "__CONTINUE__") {
+      result = result;
+    }
   }
 
 
@@ -73,6 +84,5 @@ module.exports = async function traverse(nodeId, lead, visited,status) {
       result = childResult;
     }
   }
-
   return result;
 };
