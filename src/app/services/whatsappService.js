@@ -5,7 +5,8 @@ const WhatsappMessage = require("../../pgModels/whatsapp/WhatsappMessage");
 const API_URL = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
 const API_URL_TEMPLATE = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`;
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
-const { BroadcastLog } = require("../../pgModels/index");
+const Sequelize = require("sequelize");
+const { BroadcastLog,LeadStatus } = require("../../pgModels/index");
 // Import socket.io instance for real-time messaging
 let io;
 
@@ -43,9 +44,12 @@ exports.handleIncomingMessage = async (payload) => {
   // LEAD
   let lead = await Lead.findOne({ where: { whatsapp_number } });
   if (!lead) {
+      const status = await LeadStatus.findOne({ where: { is_default: true } });
+      const status_id = status ? status.id : null;
     lead = await Lead.create({
       whatsapp_number,
-      source: "whatsapp"
+      source: "whatsapp",
+      status_id: status_id
     });
   }
 
@@ -184,10 +188,11 @@ exports.sendText = async ({ phone, text }) => {
 };
 
 
-exports.sendTemplate = async ({ phone, template_name, language = "en_US" }) => {
+exports.sendTemplate = async ({ phone, template_name, language }) => {
   const io = getIO();
 
   const chat = await getOrCreateChat(phone);
+
 
   const response = await axios.post(
     API_URL,
@@ -239,17 +244,85 @@ exports.sendTemplate = async ({ phone, template_name, language = "en_US" }) => {
 };
 
 
+// exports.getChat = async () => {
+//   try {
+//     // Find all chats with newest first, include Lead info if available for each chat's lead_id
+//     const chats = await WhatsappChat.findAll({
+//       order: [["updatedAt", "DESC"]],
+//       include: [
+//         {
+//           model: require("../../pgModels/lead"),
+//           as: "lead",
+//         },
+//         {
+//           model: WhatsappMessage, // Adjust path/model name as needed
+//           as: "messages", // Make sure association is set up as 'messages'
+//           limit: 1,
+//           order: [["createdAt", "DESC"]], // Get the last message
+//         },
+//       ],
+//     });
+
+//     // Optionally, you can format the result to only include the last message as 'lastMessage'
+//     const formattedChats = chats.map(chat => {
+//       const chatData = chat.toJSON ? chat.toJSON() : chat;
+//       return {
+//         ...chatData,
+//         lastMessage: chatData.messages && chatData.messages[0] ? chatData.messages[0] : null,
+//       };
+//     });
+
+//     console.log("chatschatschatschatschat", formattedChats);
+//     return {
+//       statusCode: 200,
+//       success: true,
+//       data: formattedChats
+//     };
+
+//   } catch (error) {
+//     return {
+//       statusCode: 400,
+//       success: false,
+//       message: error.message
+//     };
+//   }
+// };
+
+
 exports.getChat = async () => {
   try {
-    // Find all chats with newest first, include Lead info if available for each chat's lead_id
     const chats = await WhatsappChat.findAll({
       order: [["updatedAt", "DESC"]],
+      attributes: {
+        include: [
+          [
+            Sequelize.literal(`(
+              SELECT wm.content
+              FROM "WhatsappMessages" wm
+              WHERE wm.chat_id = "WhatsappChat"."id"
+              ORDER BY wm."createdAt" DESC
+              LIMIT 1
+            )`),
+            "lastMessage"
+          ],
+          [
+            Sequelize.literal(`(
+              SELECT wm."createdAt"
+              FROM "WhatsappMessages" wm
+              WHERE wm.chat_id = "WhatsappChat"."id"
+              ORDER BY wm."createdAt" DESC
+              LIMIT 1
+            )`),
+            "lastMessageTime"
+          ]
+        ]
+      },
       include: [
         {
           model: require("../../pgModels/lead"),
-          as: "lead", // You may need to set up the association for this to work!
-        },
-      ],
+          as: "lead",
+        }
+      ]
     });
 
     return {
@@ -266,7 +339,6 @@ exports.getChat = async () => {
     };
   }
 };
-
 
 exports.getTemplates = async (query) => {
   console.log("ddddddddddddddddddddddddddddddddddd", query);
@@ -308,6 +380,10 @@ exports.getMessagesByChatId = async (params) => {
       order: [["createdAt", "ASC"]],
     });
 
+   let updateChat = await WhatsappChat.findOne({ where: { id: id } });
+    if (updateChat) {
+      await updateChat.update({ unread_count: 0 });
+    }
     return {
       statusCode: 200,
       success: true,
@@ -374,7 +450,6 @@ exports.getMessagesByChatId = async (params) => {
 async function getOrCreateChat(phone) {
   const numberMatch = phone.match(/\d+/);
   let whatsapp_number;
-
   if (numberMatch) {
     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
     whatsapp_number = phoneNumber.nationalNumber;
@@ -382,9 +457,12 @@ async function getOrCreateChat(phone) {
 
   let lead = await Lead.findOne({ where: { whatsapp_number } });
   if (!lead) {
+     const status = await LeadStatus.findOne({ where: { is_default: true } });
+     const status_id = status ? status.id : null;
     lead = await Lead.create({
       whatsapp_number,
-      source: "whatsapp"
+      source: "whatsapp",
+      status_id: status_id
     });
   }
 

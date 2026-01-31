@@ -718,7 +718,6 @@ exports.changeStatus = async (body, params) => {
         typeof OnLeadStatusChange,
       );
     }
-
     // Update the lead with new status and stage
     await leadData.update({
       status_id: status.id,
