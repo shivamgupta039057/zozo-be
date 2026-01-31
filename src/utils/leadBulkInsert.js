@@ -1,11 +1,39 @@
 // services/leadImport.service.js
 const XLSX = require("xlsx");
-
+const axios = require("axios");
 
 exports.parseExcel = (filePath, sheet) => {
   const wb = XLSX.readFile(filePath);
   return XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
 };
+
+
+
+exports.parseExcelFromS3 = async (fileUrl, sheetName) => {
+  // 1. download file from S3
+  const response = await axios.get(fileUrl, {
+    responseType: "arraybuffer",
+  });
+
+  const buffer = response.data;
+
+  // 2. read workbook from buffer
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+
+  const sheet =
+    sheetName || workbook.SheetNames[0];
+
+  if (!workbook.Sheets[sheet]) {
+    throw new Error(`Sheet not found: ${sheet}`);
+  }
+
+  // 3. convert sheet to JSON
+  return XLSX.utils.sheet_to_json(
+    workbook.Sheets[sheet],
+    { defval: null }
+  );
+};
+
 
 // exports.buildLeadPayload = (row, mapping, userId, uploadId) => {
 //   const payload = {
@@ -29,6 +57,8 @@ exports.parseExcel = (filePath, sheet) => {
 
 
 // services/leadAssignmentPlan.js
+
+
 exports.buildAssignmentPlan = ({ total, userIds, percentages }) => {
   if (!userIds || !percentages) return null;
 

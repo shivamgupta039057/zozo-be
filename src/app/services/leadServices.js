@@ -14,16 +14,8 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const {
-  parseExcel,
-  buildLeadPayload,
-  buildAssignmentPlan,
-} = require("../../utils/leadBulkInsert");
-const {
-  SEARCH_FIELD_MAP,
-  FIXED_FIELDS,
-  operatorMap,
-} = require("../../utils/filerDynamic");
+const { parseExcel, buildLeadPayload, buildAssignmentPlan, parseExcelFromS3 } = require("../../utils/leadBulkInsert");
+const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap } = require("../../utils/filerDynamic");
 const { default: axios } = require("axios");
 const OnLeadStatusChange = require("../../utils/OnLeadStatusChange");
 /**
@@ -517,8 +509,8 @@ exports.getAllLeads = async ({ query, body }) => {
           andConditions.push(
             Sequelize.where(
               Sequelize.fn("COALESCE", Sequelize.json(`data.${field}`), ""),
-              "",
-            ),
+              ""
+            )
           );
         }
         return;
@@ -530,7 +522,10 @@ exports.getAllLeads = async ({ query, body }) => {
           andConditions.push({ [field]: { [Op.ne]: null } });
         } else {
           andConditions.push(
-            Sequelize.where(Sequelize.json(`data.${field}`), { [Op.ne]: null }),
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [Op.ne]: null }
+            )
           );
         }
         return;
@@ -550,8 +545,8 @@ exports.getAllLeads = async ({ query, body }) => {
                   Sequelize.literal(`TO_DATE('${start}', 'DD-MM-YYYY')`),
                   Sequelize.literal(`TO_DATE('${end}', 'DD-MM-YYYY')`),
                 ],
-              },
-            ),
+              }
+            )
           );
           return;
         }
@@ -561,9 +556,10 @@ exports.getAllLeads = async ({ query, body }) => {
           andConditions.push({ [field]: { [Op.between]: value } });
         } else {
           andConditions.push(
-            Sequelize.where(Sequelize.json(`data.${field}`), {
-              [Op.between]: value,
-            }),
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [Op.between]: value }
+            )
           );
         }
         return;
@@ -575,9 +571,10 @@ exports.getAllLeads = async ({ query, body }) => {
           andConditions.push({ [field]: { [sequelizeOp]: value } });
         } else {
           andConditions.push(
-            Sequelize.where(Sequelize.json(`data.${field}`), {
-              [sequelizeOp]: value,
-            }),
+            Sequelize.where(
+              Sequelize.json(`data.${field}`),
+              { [sequelizeOp]: value }
+            )
           );
         }
         return;
@@ -599,11 +596,12 @@ exports.getAllLeads = async ({ query, body }) => {
             Sequelize.cast(Sequelize.json(`data.${field}`), "text"),
             operator === "contains"
               ? { [Op.iLike]: `%${singleValue}%` }
-              : { [sequelizeOp]: singleValue },
-          ),
+              : { [sequelizeOp]: singleValue }
+          )
         );
       }
     });
+
 
     /* ==================================================
        APPLY ALL CONDITIONS
@@ -695,9 +693,9 @@ exports.changeStatus = async (body, params) => {
       };
     }
 
-    console.log("leadDataleadDataleadData", leadData);
+    // console.log("leadDataleadDataleadData", leadData);
 
-    console.log("leadIdleadIdleadIdleadIdleadIdleadId", leadId, statusId);
+    // console.log("leadIdleadIdleadIdleadIdleadIdleadId", leadId, statusId);
 
     // If there is no associated stage
     if (!status.stage_id && (!status.stage || !status.stage.id)) {
@@ -735,7 +733,7 @@ exports.changeStatus = async (body, params) => {
       message:
         resMessage.LEAD_STATUS_UPDATED || "Lead status updated successfully",
       data: updatedLead,
-      dataTemp,
+      dataTemp
     };
   } catch (error) {
     return {
@@ -1073,12 +1071,18 @@ exports.bulkAssignLeads = async (body) => {
 exports.uploadFile = async (file, body, user) => {
   console.log("filefilefile", file);
 
+  console.log("filefilefile", file);
+
   try {
+
     const upload = await BulkLeadUpload.create({
       file_name: file.originalname,
+
       file_path: file.location,
-      uploaded_by: user?.id || null,
+
+      uploaded_by: user?.id || null
     });
+
 
     console.log("Upload record created:", upload);
     return {
@@ -1185,43 +1189,12 @@ exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
     });
 
     const upload = await BulkLeadUpload.findByPk(uploadId);
-    if (!upload) {
-      return {
-        statusCode: statusCode.BAD_REQUEST,
-        success: false,
-        message: "Upload record not found",
-      };
-    }
-    console.log("Upload record:", upload.dataValues);
-
-    // Download the file from S3 (URL in upload.file_path)
-    // Use axios to fetch as arraybuffer, then parse with XLSX
-    const axiosResp = await axios.get(upload.file_path, { responseType: "arraybuffer" });
-    const buffer = axiosResp.data;
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-
-    if (!workbook.SheetNames.includes(sheet)) {
-      return {
-        statusCode: statusCode.BAD_REQUEST,
-        success: false,
-        message: "Sheet not found in the uploaded file",
-      };
-    }
-
-    const ws = workbook.Sheets[sheet];
-    const rows = XLSX.utils.sheet_to_json(ws);
-
-    // mapping.whatsapp_number is column name from mapping
-    const numbers = rows.map((r) => r[mapping.whatsapp_number]).filter(Boolean);
-
-    if (numbers.length === 0) {
-      return {
-        statusCode: statusCode.BAD_REQUEST,
-        success: false,
-        message: "No WhatsApp numbers found in the sheet per mapping.",
-      };
-    }
-
+    // const rows = parseExcel(upload.file_path, sheet);
+    const rows = await parseExcelFromS3(
+      upload.file_path,
+      sheet
+    );
+    const numbers = rows.map(r => r[mapping.whatsapp_number]);
     const duplicates = await Lead.findAll({
       where: { whatsapp_number: { [Op.in]: numbers } },
       attributes: ["whatsapp_number"],
@@ -1311,27 +1284,11 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
       };
     }
 
-    let rows = [];
-    let filePath = upload.file_path;
-
-    // basic check to see if file path is an S3 url
-    const isS3Url = typeof filePath === 'string' && (filePath.startsWith('http://') || filePath.startsWith('https://'));
-
-    if (isS3Url) {
-      // Download excel file from S3 url using axios, parse as arraybuffer, then parse using XLSX
-      const fileResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
-      const data = fileResponse.data;
-      const workbook = XLSX.read(data, { type: 'buffer' });
-
-      // Try getting specific sheet, else get the first one
-      let wsname = sheet || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[wsname];
-      rows = XLSX.utils.sheet_to_json(worksheet);
-    } else {
-      // Assume file is local path or accessible to parseExcel util
-      rows = parseExcel(filePath, sheet);
-    }
-
+    // const rows = parseExcel(upload.file_path, sheet);
+    const rows = await parseExcelFromS3(
+      upload.file_path,
+      sheet
+    );
     if (!rows.length) {
       return {
         statusCode: statusCode.BAD_REQUEST,

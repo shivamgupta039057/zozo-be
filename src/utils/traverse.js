@@ -8,7 +8,7 @@ module.exports = async function traverse(nodeId, lead, visited,status) {
   //   "nodeId, lead, visitednodeId, lead, visitednodeId, lead, visited",
   //   nodeId,
   //   lead,
-  //   visited
+  //   visited,status
   // );
 
   if (visited.has(nodeId)) return;
@@ -57,7 +57,7 @@ module.exports = async function traverse(nodeId, lead, visited,status) {
   }
   else if (node.node_type === "ACTION") {
     // Capture any return value from the action (e.g. selectedData.label)
-    result = await executeAction(node, lead);
+    result = await executeAction(node, lead,status);
   }
 
 
