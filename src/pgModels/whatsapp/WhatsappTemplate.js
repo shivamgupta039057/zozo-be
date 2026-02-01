@@ -16,8 +16,12 @@ const WhatsappTemplate = sequelize.define("WhatsappTemplate", {
 
   body: DataTypes.TEXT,
 
-  meta_template_id: DataTypes.STRING,
-
+  meta_template_id: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true   // ✅ THIS FIXES EVERYTHING
+  },
+  
   status: DataTypes.STRING // APPROVED
 });
 
