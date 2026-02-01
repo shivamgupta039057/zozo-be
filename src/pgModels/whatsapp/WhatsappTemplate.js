@@ -23,11 +23,11 @@ const WhatsappTemplate = sequelize.define("WhatsappTemplate", {
 
 // Add relation to WhatsappMessage
 WhatsappTemplate.associate = function(models) {
-  WhatsappTemplate.hasMany(models.WhatsappMessage, {
-    foreignKey: 'meta_message_id',
-    sourceKey: 'meta_template_id',
-    as: 'messages'
-  });
+  // WhatsappTemplate.hasMany(models.WhatsappMessage, {
+  //   foreignKey: 'meta_message_id',
+  //   sourceKey: 'meta_template_id',
+  //   as: 'messages'
+  // });
 };
 
 module.exports = WhatsappTemplate;

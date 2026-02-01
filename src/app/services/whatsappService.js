@@ -6,7 +6,7 @@ const API_URL = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_I
 const API_URL_TEMPLATE = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`;
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const Sequelize = require("sequelize");
-const { BroadcastLog,LeadStatus } = require("../../pgModels/index");
+const { BroadcastLog, LeadStatus } = require("../../pgModels/index");
 // Import socket.io instance for real-time messaging
 let io;
 
@@ -44,8 +44,8 @@ exports.handleIncomingMessage = async (payload) => {
   // LEAD
   let lead = await Lead.findOne({ where: { whatsapp_number } });
   if (!lead) {
-      const status = await LeadStatus.findOne({ where: { is_default: true } });
-      const status_id = status ? status.id : null;
+    const status = await LeadStatus.findOne({ where: { is_default: true } });
+    const status_id = status ? status.id : null;
     lead = await Lead.create({
       whatsapp_number,
       source: "whatsapp",
@@ -107,8 +107,8 @@ exports.handleIncomingMessage = async (payload) => {
       last_message_at: chat.last_message_at,
       unread_count: chat.unread_count + 1,
       is_new_chat: isNewChat,
-       lead:{
-        whatsapp_number : chat.phone,
+      lead: {
+        whatsapp_number: chat.phone,
         name: chat.lead?.name || null
       }
     });
@@ -172,13 +172,13 @@ exports.sendText = async ({ phone, text }) => {
     // 🔥 CHAT LIST UPDATE
     io.emit("chatUpdated", {
       chat_id: chat.id,
-        id: chat.id,
+      id: chat.id,
       phone: chat.phone,
       last_message: text,
       last_message_at: chat.last_message_at,
       unread_count: chat.unread_count,
-       lead:{
-        whatsapp_number : chat.phone,
+      lead: {
+        whatsapp_number: chat.phone,
         name: chat.lead?.name || null
       }
     });
@@ -188,60 +188,61 @@ exports.sendText = async ({ phone, text }) => {
 };
 
 
-exports.sendTemplate = async ({ phone, template_name, language }) => {
-  const io = getIO();
+// exports.sendTemplate = async ({ phone, template_name, language='en_US' }) => {
+//   const io = getIO();
 
-  const chat = await getOrCreateChat(phone);
+//   const chat = await getOrCreateChat(phone);
 
+// // console.log("chatchatchatchatchatchatchatchat", chat);
+//   const response = await axios.post(
+//     API_URL,
+//     {
+//       messaging_product: "whatsapp",
+//       to: phone,
+//       type: "template",
+//       template: {
+//         name: template_name,
+//         language: { code: language }
+//       }
+//     },
+//     {
+//       headers: {
+//         Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+//         "Content-Type": "application/json"
+//       }
+//     }
+//   );
 
-  const response = await axios.post(
-    API_URL,
-    {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
-      template: {
-        name: template_name,
-        language: { code: language }
-      }
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json"
-      }
-    }
-  );
+//   // console.log("responseresponseresponseresponse", response);
+//   const savedMessage = await WhatsappMessage.create({
+//     chat_id: chat.id,
+//     direction: "OUT",
+//     message_type: "template",
+//     content: template_name,
+//     meta_message_id: response.data?.messages?.[0]?.id
+//   });
 
-  const savedMessage = await WhatsappMessage.create({
-    chat_id: chat.id,
-    direction: "OUT",
-    message_type: "template",
-    content: template_name,
-    meta_message_id: response.data?.messages?.[0]?.id
-  });
+//   await chat.update({
+//     last_message: template_name,
+//     last_message_at: new Date()
+//   });
 
-  await chat.update({
-    last_message: template_name,
-    last_message_at: new Date()
-  });
+//   if (io) {
+//     io.emit("chatUpdated", {
+//       id: chat.id,
+//       phone: chat.phone,
+//       last_message: template_name,
+//       last_message_at: chat.last_message_at,
+//       unread_count: chat.unread_count,
+//       lead:{
+//         whatsapp_number : chat.phone,
+//         name: chat.lead?.name || null
+//       }
+//     });
+//   }
 
-  if (io) {
-    io.emit("chatUpdated", {
-      id: chat.id,
-      phone: chat.phone,
-      last_message: template_name,
-      last_message_at: chat.last_message_at,
-      unread_count: chat.unread_count,
-      lead:{
-        whatsapp_number : chat.phone,
-        name: chat.lead?.name || null
-      }
-    });
-  }
-
-  return response.data;
-};
+//   return response.data;
+// };
 
 
 // exports.getChat = async () => {
@@ -287,6 +288,70 @@ exports.sendTemplate = async ({ phone, template_name, language }) => {
 //     };
 //   }
 // };
+
+exports.sendTemplate = async ({ phone, template_name, params, media = null }) => {
+  const io = getIO();
+  const safeParams = [...params];
+  const chat = await getOrCreateChat(phone);
+
+  // 1️⃣ Meta se template nikalo
+  const metaTemplate = await getMetaTemplate(template_name);
+
+  if (!metaTemplate) throw new Error("Template not found");
+
+  // 2️⃣ create payload with params and media
+  const templatePayload = TemplatePayload(
+    metaTemplate,
+    params,
+    media
+  );
+
+
+  // 3️⃣ send to meta
+  const response = await axios.post(
+    API_URL,
+    {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: templatePayload
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+
+  const bodyComponent = metaTemplate.components.find(
+    c => c.type === "BODY"
+  );
+  // USE IT
+  let finalText = bodyComponent.text;
+
+  finalText = applyParamsToTemplate(finalText, safeParams);
+
+  // 5️⃣ DB me ACTUAL message save karo
+  await WhatsappMessage.create({
+    chat_id: chat.id,
+    direction: "OUT",
+    message_type: "template",
+    content: finalText,
+    meta_message_id: response.data?.messages?.[0]?.id,
+    media_type: media?.type || null,
+    media_url: media?.url || null,
+    status: "sent"
+  });
+
+  await chat.update({
+    last_message: finalText,
+    last_message_at: new Date()
+  });
+
+  return response.data;
+};
 
 
 exports.getChat = async () => {
@@ -354,8 +419,6 @@ exports.getTemplates = async (query) => {
       }
     );
 
-    console.log("`responseresponseresponse`", response.data);
-
 
     return {
       statusCode: 200,
@@ -375,19 +438,42 @@ exports.getTemplates = async (query) => {
 exports.getMessagesByChatId = async (params) => {
   try {
     const { id } = params;
-    const chatID = await WhatsappMessage.findAll({
+
+    const messages = await WhatsappMessage.findAll({
       where: { chat_id: id },
       order: [["createdAt", "ASC"]],
     });
 
-   let updateChat = await WhatsappChat.findOne({ where: { id: id } });
+    // 🔥 FORMAT messages for frontend
+    const formattedMessages = messages.map(msg => ({
+      id: msg.id,
+      chat_id: msg.chat_id,
+      direction: msg.direction,
+      message_type: msg.message_type,
+      content: msg.content,
+
+      // 👇 MEDIA handling
+      media: msg.media_url
+        ? {
+            type: msg.media_type,   // image | video | document
+            url: msg.media_url
+          }
+        : null,
+
+      status: msg.status,
+      createdAt: msg.createdAt
+    }));
+
+    // Reset unread count
+    const updateChat = await WhatsappChat.findOne({ where: { id } });
     if (updateChat) {
       await updateChat.update({ unread_count: 0 });
     }
+
     return {
       statusCode: 200,
       success: true,
-      data: chatID
+      data: formattedMessages
     };
 
   } catch (error) {
@@ -398,6 +484,7 @@ exports.getMessagesByChatId = async (params) => {
     };
   }
 };
+
 
 
 
@@ -457,8 +544,8 @@ async function getOrCreateChat(phone) {
 
   let lead = await Lead.findOne({ where: { whatsapp_number } });
   if (!lead) {
-     const status = await LeadStatus.findOne({ where: { is_default: true } });
-     const status_id = status ? status.id : null;
+    const status = await LeadStatus.findOne({ where: { is_default: true } });
+    const status_id = status ? status.id : null;
     lead = await Lead.create({
       whatsapp_number,
       source: "whatsapp",
@@ -517,3 +604,125 @@ exports.createTemplate = async (req, res) => {
     });
   }
 };
+
+
+async function getMetaTemplate(template_name) {
+  const res = await axios.get(API_URL_TEMPLATE, {
+    headers: {
+      Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`
+    }
+  });
+
+  return res.data.data.find(
+    t => t.name === template_name
+  );
+}
+
+
+function TemplatePayload(metaTemplate, params = [], media = null) {
+  const safeParams = [...params]; // 👈 original params safe
+  const components = [];
+
+  for (const comp of metaTemplate.components) {
+
+    // 🔹 HEADER
+    if (comp.type === "HEADER") {
+
+      // HEADER with MEDIA
+      if (
+        ["IMAGE", "VIDEO", "DOCUMENT"].includes(comp.format)
+      ) {
+        if (!media?.url) {
+          throw new Error("Media URL required for header");
+        }
+
+        components.push({
+          type: "header",
+          parameters: [
+            {
+              type: comp.format.toLowerCase(),
+              [comp.format.toLowerCase()]: {
+                link: media.url
+              }
+            }
+          ]
+        });
+      }
+
+      // HEADER with TEXT
+      if (comp.format === "TEXT") {
+        components.push({
+          type: "header",
+          parameters: [
+            {
+              type: "text",
+              text: safeParams.shift()
+            }
+          ]
+        });
+      }
+    }
+
+    // 🔹 BODY
+    if (comp.type === "BODY") {
+      const count =
+        (comp.text.match(/{{\s*\d+\s*}}/g) || []).length;
+
+      const bodyParams = safeParams.slice(0, count);
+      safeParams.splice(0, count);
+
+      components.push({
+        type: "body",
+        parameters: bodyParams.map(p => ({
+          type: "text",
+          text: p
+        }))
+      });
+    }
+
+    // 🔹 BUTTONS
+    if (comp.type === "BUTTONS") {
+      comp.buttons.forEach((btn, index) => {
+        if (btn.type === "URL") {
+          components.push({
+            type: "button",
+            sub_type: "url",
+            index,
+            parameters: [
+              {
+                type: "text",
+                text: safeParams.shift()
+              }
+            ]
+          });
+        }
+      });
+    }
+  }
+
+  return {
+    name: metaTemplate.name,
+    language: { code: metaTemplate.language },
+    components
+  };
+}
+
+
+
+function applyParamsToTemplate(text, params) {
+  let finalText = text;
+
+  params.forEach((p, i) => {
+    const value =
+      typeof p === "string"
+        ? p
+        : typeof p === "object"
+          ? p.text ?? ""
+          : "";
+
+    const regex = new RegExp(`{{\\s*${i + 1}\\s*}}`, "g");
+    finalText = finalText.replace(regex, value);
+  });
+
+  return finalText;
+}

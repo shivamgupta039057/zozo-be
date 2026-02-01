@@ -34,7 +34,8 @@ const leadId = Number(broadcast_lead_id);
   try {
     await sendTemplate({
       phone: `91${lead.dataValues.phone}`,
-      template_name: broadcast.dataValues.template_name
+      template_name: broadcast.dataValues.template_name,
+      language: "en_US",
     });
 
     await lead.update({ status: "SENT" });

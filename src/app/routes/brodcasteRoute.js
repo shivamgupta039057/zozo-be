@@ -7,7 +7,7 @@ const auth = require("../../middleware/auth");
 
 
 router.post("/createBrodcaste", auth, responseHandler(controller.createBrodcaste));
-router.post("/:id/start", auth, responseHandler(controller.startBroadcast));
+router.get("/:id/start", auth, responseHandler(controller.startBroadcast));
 
 
 module.exports = router;

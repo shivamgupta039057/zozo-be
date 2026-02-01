@@ -15,7 +15,7 @@ router.post('/send-text', auth, responseHandler(controller.sendText));
 router.post('/send-template', auth, responseHandler(controller.sendTemplate));
 
 router.get('/chats', auth, responseHandler(controller.getChat));
-router.get('/get-template', auth, responseHandler(controller.getTemplates));
+router.get('/get-template', responseHandler(controller.getTemplates));
 router.post('/create-template', auth, responseHandler(controller.createTemplate));
 router.get('/messages/:id', auth, responseHandler(controller.getMessagesByChatId));
 
