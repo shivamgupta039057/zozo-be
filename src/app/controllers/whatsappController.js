@@ -161,6 +161,18 @@ exports.sendTemplate = async ({ body }) => {
   }
 };
 
+exports.sendMedia = async ({ body }) => {
+  try {
+    return await services.sendMedia(body);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
 exports.getChat = async ({ body }) => {
   try {
     return await services.getChat(body);

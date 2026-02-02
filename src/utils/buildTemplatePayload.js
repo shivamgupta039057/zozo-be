@@ -31,10 +31,18 @@ exports.buildTemplatePayload = (uiData) => {
     });
   }
 
+  if(uiData.buttons) {
+    components.push({
+      type: "BUTTONS",
+      buttons: uiData.buttons
+    });
+  }
+
   return {
     name: uiData.templateName.toLowerCase().replace(/\s+/g, "_"),
-    language: "en",
+    language: uiData.language,
     category: uiData.type.toUpperCase(), // MARKETING
+    components,
     components
   };
 };

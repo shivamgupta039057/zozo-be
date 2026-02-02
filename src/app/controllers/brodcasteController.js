@@ -15,7 +15,7 @@ exports.createBrodcaste = async ({ body }) => {
 
 
 
-exports.startBroadcast = async ({ params,query, }) => {
+exports.startBroadcast = async ({ params, }) => {
   try {
 
     return await services.startBroadcast(params.id);

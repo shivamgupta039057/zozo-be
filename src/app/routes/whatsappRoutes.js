@@ -13,9 +13,9 @@ router.post('/webhook', responseHandler(controller.receiveMessage)); // public
 // new workflow data
 router.post('/send-text', auth, responseHandler(controller.sendText));
 router.post('/send-template', auth, responseHandler(controller.sendTemplate));
-
+router.post('/upload', auth , responseHandler(controller.sendMedia))
 router.get('/chats', auth, responseHandler(controller.getChat));
-router.get('/get-template', auth, responseHandler(controller.getTemplates));
+router.get('/get-template', responseHandler(controller.getTemplates));
 router.post('/create-template', auth, responseHandler(controller.createTemplate));
 router.get('/messages/:id', auth, responseHandler(controller.getMessagesByChatId));
 
