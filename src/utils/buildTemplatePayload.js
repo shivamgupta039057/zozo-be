@@ -1,4 +1,6 @@
 exports.buildTemplatePayload = (uiData) => {
+  console.log("uiDatauiDatauiDatauiData", uiData);
+
   const components = [];
 
   // HEADER
@@ -7,8 +9,8 @@ exports.buildTemplatePayload = (uiData) => {
       type: "HEADER",
       format: uiData.mediaType.toUpperCase(), // IMAGE / VIDEO ,
       example: {
-        header_handle: [uiData.media_upload_id]
-      }
+        header_handle: [uiData.media_upload_id], // Use the uploaded media ID
+      },
     });
   }
 
@@ -16,36 +18,37 @@ exports.buildTemplatePayload = (uiData) => {
     components.push({
       type: "HEADER",
       format: "TEXT",
-      text: uiData.headerText
+      text: uiData.headerText,
     });
   }
 
   // BODY (required)
   components.push({
     type: "BODY",
-    text: uiData.message
+    text: uiData.message,
   });
 
   // FOOTER (optional)
   if (uiData.footer) {
     components.push({
       type: "FOOTER",
-      text: uiData.footer
+      text: uiData.footer,
     });
   }
 
-  if(uiData.buttons) {
+  if (uiData.buttons) {
     components.push({
       type: "BUTTONS",
-      buttons: uiData.buttons
+      buttons: uiData.buttons,
     });
   }
+
+  console.log("componentscomponentscomponentscomponents", components);
 
   return {
     name: uiData.templateName.toLowerCase().replace(/\s+/g, "_"),
     language: uiData.language,
     category: uiData.type.toUpperCase(), // MARKETING
     components,
-    components
   };
 };
