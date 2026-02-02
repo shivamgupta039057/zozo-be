@@ -189,151 +189,53 @@ exports.sendText = async ({ phone, text }) => {
   return response.data;
 };
 
-// process.env.WHATSAPP_PHONE_ID
+
 exports.sendMedia = async ({ fileUrl }) => {
   const phoneId = process.env.WHATSAPP_PHONE_ID;
 
   try {
-    // 1. Download from S3 as a stream
-    const fileResponse = await axios.get(fileUrl, { responseType: 'stream' });
-    
-    // 2. Extract the actual mime-type from S3 headers (e.g., 'image/png')
-    const contentType = fileResponse.headers['content-type'] || 'image/png';
-    
-    // 3. Create a clean filename (WhatsApp likes extensions like .png or .jpg)
-    const fileName = fileUrl.split('/').pop().split('?')[0] || 'file.png';
+    const fileResponse = await axios.get(fileUrl, {
+      responseType: 'stream'
+    });
+
+    const fileName =
+      fileUrl.split('/').pop().split('?')[0] || 'file.png';
+
+    const contentType = getMimeType(fileName); // 🔥 FIX
 
     const form = new FormData();
-    
-    // THE FIX: Pass the options object as the 3rd argument
+
     form.append('file', fileResponse.data, {
       filename: fileName,
-      contentType: contentType 
+      contentType: contentType
     });
-    
-    form.append('type', contentType);
+
+    form.append('type', 'image'); // MUST be image
     form.append('messaging_product', 'whatsapp');
 
-    // 4. Post to Meta
     const response = await axios.post(
       `https://graph.facebook.com/v23.0/${phoneId}/media`,
       form,
       {
         headers: {
           ...form.getHeaders(),
-          'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`
+          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`
         }
       }
     );
 
-    console.log("Success! Media ID:", response.data.id);
+    console.log('✅ Media uploaded:', response.data.id);
     return response.data;
+
   } catch (error) {
-    console.error("WhatsApp Media Upload Error:", error.response?.data || error.message);
+    console.error(
+      '❌ WhatsApp Media Upload Error:',
+      error.response?.data || error.message
+    );
     throw error;
   }
 };
 
-// exports.sendTemplate = async ({ phone, template_name, language='en_US' }) => {
-//   const io = getIO();
-
-//   const chat = await getOrCreateChat(phone);
-
-// // console.log("chatchatchatchatchatchatchatchat", chat);
-//   const response = await axios.post(
-//     API_URL,
-//     {
-//       messaging_product: "whatsapp",
-//       to: phone,
-//       type: "template",
-//       template: {
-//         name: template_name,
-//         language: { code: language }
-//       }
-//     },
-//     {
-//       headers: {
-//         Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-//         "Content-Type": "application/json"
-//       }
-//     }
-//   );
-
-//   // console.log("responseresponseresponseresponse", response);
-//   const savedMessage = await WhatsappMessage.create({
-//     chat_id: chat.id,
-//     direction: "OUT",
-//     message_type: "template",
-//     content: template_name,
-//     meta_message_id: response.data?.messages?.[0]?.id
-//   });
-
-//   await chat.update({
-//     last_message: template_name,
-//     last_message_at: new Date()
-//   });
-
-//   if (io) {
-//     io.emit("chatUpdated", {
-//       id: chat.id,
-//       phone: chat.phone,
-//       last_message: template_name,
-//       last_message_at: chat.last_message_at,
-//       unread_count: chat.unread_count,
-//       lead:{
-//         whatsapp_number : chat.phone,
-//         name: chat.lead?.name || null
-//       }
-//     });
-//   }
-
-//   return response.data;
-// };
-
-
-// exports.getChat = async () => {
-//   try {
-//     // Find all chats with newest first, include Lead info if available for each chat's lead_id
-//     const chats = await WhatsappChat.findAll({
-//       order: [["updatedAt", "DESC"]],
-//       include: [
-//         {
-//           model: require("../../pgModels/lead"),
-//           as: "lead",
-//         },
-//         {
-//           model: WhatsappMessage, // Adjust path/model name as needed
-//           as: "messages", // Make sure association is set up as 'messages'
-//           limit: 1,
-//           order: [["createdAt", "DESC"]], // Get the last message
-//         },
-//       ],
-//     });
-
-//     // Optionally, you can format the result to only include the last message as 'lastMessage'
-//     const formattedChats = chats.map(chat => {
-//       const chatData = chat.toJSON ? chat.toJSON() : chat;
-//       return {
-//         ...chatData,
-//         lastMessage: chatData.messages && chatData.messages[0] ? chatData.messages[0] : null,
-//       };
-//     });
-
-//     console.log("chatschatschatschatschat", formattedChats);
-//     return {
-//       statusCode: 200,
-//       success: true,
-//       data: formattedChats
-//     };
-
-//   } catch (error) {
-//     return {
-//       statusCode: 400,
-//       success: false,
-//       message: error.message
-//     };
-//   }
-// };
 
 exports.sendTemplate = async ({ phone, template_name, params=[], media = null }) => {
   console.log("phonephonephone" , phone , "ddd" , template_name , "dddfddf" ,  params , "dfdddff" , media );
@@ -547,54 +449,6 @@ exports.getMessagesByChatId = async (params) => {
 };
 
 
-
-
-// async function getOrCreateChat(phone) {
-//   console.log("ddddddddddddddddddddddddddddddddddddd", phone);
-
-//   const numberMatch = phone.match(/\d+/);
-
-//   console.log("numberMatchnumberMatchnumberMatch", numberMatch);
-
-//   let whatsapp_number
-//   if (numberMatch) {
-//     const phoneNumber = parsePhoneNumberFromString(`+${numberMatch[0]}`);
-//     whatsapp_number = phoneNumber.nationalNumber
-//   }
-
-//   console.log("whatsapp_numberwhatsapp_numberwhatsapp_number", whatsapp_number);
-
-
-//   let lead = await Lead.findOne({ where: { whatsapp_number } });
-
-//   console.log("leadleadleadleadlead", lead);
-
-
-
-//   if (!lead) {
-//     lead = await Lead.create({
-//       whatsapp_number,
-//       source: "whatsapp"
-//     });
-//   }
-
-//   let chat = await WhatsappChat.findOne({
-//     where: { phone: whatsapp_number }
-//   });
-
-//   console.log(chat, "chhhhhhh")
-
-//   if (!chat) {
-//     chat = await WhatsappChat.create({
-//       phone: whatsapp_number,
-//       lead_id: lead.id,
-//       last_message_at: new Date(),
-//       // is_24h_active: true
-//     });
-//   }
-
-//   return chat;
-// }
 async function getOrCreateChat(phone) {
   const numberMatch = phone.match(/\d+/);
   let whatsapp_number;
@@ -786,4 +640,20 @@ function applyParamsToTemplate(text, params) {
   });
 
   return finalText;
+}
+
+
+function getMimeType(fileName) {
+  const ext = fileName.split('.').pop().toLowerCase();
+
+  const map = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    pdf: 'application/pdf',
+    mp4: 'video/mp4'
+  };
+
+  return map[ext] || 'application/octet-stream';
 }
