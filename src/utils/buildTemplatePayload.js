@@ -5,7 +5,10 @@ exports.buildTemplatePayload = (uiData) => {
   if (uiData.headerType === "Media") {
     components.push({
       type: "HEADER",
-      format: uiData.mediaType.toUpperCase() // IMAGE / VIDEO
+      format: uiData.mediaType.toUpperCase(), // IMAGE / VIDEO ,
+      example: {
+        header_handle: [uiData.media_upload_id]
+      }
     });
   }
 
