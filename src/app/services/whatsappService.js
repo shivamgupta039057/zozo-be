@@ -238,20 +238,13 @@ exports.sendMedia = async ({ fileUrl }) => {
 
 
 exports.sendTemplate = async ({ phone, template_name, params=[], media = null }) => {
-  console.log("phonephonephone" , phone , "ddd" , template_name , "dddfddf" ,  params , "dfdddff" , media );
+
   
   const io = getIO();
   const safeParams = [...params];
   const chat = await getOrCreateChat(phone);
-
-  console.log("fdfffchatchatchatchat" , chat);
-  
-
   // 1️⃣ Meta se template nikalo
   const metaTemplate = await getMetaTemplate(template_name);
-
-  console.log("metaTemplatemetaTemplatemetaTemplatemetaTemplate" , metaTemplate);
-  
 
   if (!metaTemplate) throw new Error("Template not found");
 
@@ -261,9 +254,6 @@ exports.sendTemplate = async ({ phone, template_name, params=[], media = null })
     params,
     media
   );
-
-  console.log("templatePayloadtemplatePayloadtemplatePayload" , templatePayload);
-  
 
 
   // 3️⃣ send to meta
@@ -282,11 +272,6 @@ exports.sendTemplate = async ({ phone, template_name, params=[], media = null })
       }
     }
   );
-
-
-  console.log("responseresponseresponseresponseresponse" , response);
-  
-
 
   const bodyComponent = metaTemplate.components.find(
     c => c.type === "BODY"
@@ -492,7 +477,8 @@ exports.createTemplate = async (req, res) => {
   try {
     const payload = buildTemplatePayload(req.body);
 
-    // console.log("ssssssssssspayloadpayloadpayload", payload.json());
+   
+    console.log("payloadpayloadpayloadpayload" , payload);
 // ffffffffffff
     const response = await axios.post(
       API_URL_TEMPLATE,
@@ -504,9 +490,6 @@ exports.createTemplate = async (req, res) => {
         }
       }
     );
-
-    console.log("responseresponseresponseresponseresponseresponse", response);
-
 
     return res.json({
       success: true,
@@ -535,92 +518,91 @@ async function getMetaTemplate(template_name) {
 
 
 function TemplatePayload(metaTemplate, params = [], media = null) {
-  const safeParams = [...params]; // 👈 original params safe
+  const safeParams = [...params];
   const components = [];
 
   for (const comp of metaTemplate.components) {
 
-    // 🔹 HEADER
+    /* 🔹 HEADER */
     if (comp.type === "HEADER") {
 
-      // HEADER with MEDIA
-      if (
-        ["IMAGE", "VIDEO", "DOCUMENT"].includes(comp.format)
-      ) {
+      // MEDIA HEADER
+      if (["IMAGE", "VIDEO", "DOCUMENT"].includes(comp.format)) {
         if (!media?.url) {
           throw new Error("Media URL required for header");
         }
 
         components.push({
           type: "header",
-          parameters: [
-            {
-              type: comp.format.toLowerCase(),
-              [comp.format.toLowerCase()]: {
-                link: media.url
-              }
-            }
-          ]
+          parameters: [{
+            type: comp.format.toLowerCase(),
+            [comp.format.toLowerCase()]: { link: media.url }
+          }]
         });
       }
 
-      // HEADER with TEXT
-      if (comp.format === "TEXT") {
+      // TEXT HEADER (ONLY if variable exists)
+      if (comp.format === "TEXT" && safeParams.length > 0) {
         components.push({
           type: "header",
-          parameters: [
-            {
-              type: "text",
-              text: safeParams.shift()
-            }
-          ]
+          parameters: [{
+            type: "text",
+            text: safeParams.shift()
+          }]
         });
       }
     }
 
-    // 🔹 BODY
+    /* 🔹 BODY */
     if (comp.type === "BODY") {
-      const count =
-        (comp.text.match(/{{\s*\d+\s*}}/g) || []).length;
+      const matches = comp.text.match(/{{\s*\d+\s*}}/g) || [];
+      const count = matches.length;
 
-      const bodyParams = safeParams.slice(0, count);
-      safeParams.splice(0, count);
+      // ⚠️ ONLY add body if variables exist
+      if (count > 0) {
+        const bodyParams = safeParams.splice(0, count);
 
-      components.push({
-        type: "body",
-        parameters: bodyParams.map(p => ({
-          type: "text",
-          text: p
-        }))
-      });
+        components.push({
+          type: "body",
+          parameters: bodyParams.map(p => ({
+            type: "text",
+            text: p
+          }))
+        });
+      }
     }
 
-    // 🔹 BUTTONS
+    /* 🔹 BUTTONS */
     if (comp.type === "BUTTONS") {
       comp.buttons.forEach((btn, index) => {
-        if (btn.type === "URL") {
+        if (btn.type === "URL" && safeParams.length > 0) {
           components.push({
             type: "button",
             sub_type: "url",
             index,
-            parameters: [
-              {
-                type: "text",
-                text: safeParams.shift()
-              }
-            ]
+            parameters: [{
+              type: "text",
+              text: safeParams.shift()
+            }]
           });
         }
       });
     }
   }
 
-  return {
+  // 🚀 IMPORTANT: no components → don't send it
+  const payload = {
     name: metaTemplate.name,
-    language: { code: metaTemplate.language },
-    components
+    language: { code: metaTemplate.language }
   };
+
+  if (components.length > 0) {
+    payload.components = components;
+  }
+
+  return payload;
 }
+
 
 
 
