@@ -190,10 +190,89 @@ exports.sendText = async ({ phone, text }) => {
 };
 
 
-exports.sendMedia = async ({ fileUrl }) => {
+/**
+ * Resumable Upload API - required for template media header_handle.
+ * Template creation expects a handle (e.g. "4:::..." or "2:...") not the numeric ID from simple /media upload.
+ * @see https://developers.facebook.com/docs/graph-api/guides/upload
+ * @see https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates/components/#media-header
+ */
+async function uploadMediaForTemplate(fileUrl) {
+  const appId = process.env.FB_APP_ID;
+  if (!appId) {
+    throw new Error('FB_APP_ID is required for template media upload (Resumable Upload API)');
+  }
+
+  const fileResponse = await axios.get(fileUrl, {
+    responseType: 'arraybuffer'
+  });
+  const fileBuffer = Buffer.from(fileResponse.data);
+  const fileLength = fileBuffer.length;
+  // Meta requires file_name to match /^[^\/<@%]+$/ - no \ / < @ %
+  let fileName = fileUrl.split('/').pop().split('?')[0] || 'file.png';
+  try {
+    fileName = decodeURIComponent(fileName);
+  } catch (_) {}
+  fileName = fileName.replace(/[\\/<@%]/g, '_').trim() || 'file.png';
+  const fileType = getMimeType(fileName);
+
+  // Resumable Upload only supports: image/jpeg, image/jpg, image/png, application/pdf, video/mp4
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf', 'video/mp4'];
+  if (!allowedTypes.includes(fileType)) {
+    throw new Error(`Template media type not supported: ${fileType}. Use image/jpeg, image/png, application/pdf, or video/mp4.`);
+  }
+
+  // Step 1: Create upload session (query params per Meta docs)
+  const sessionRes = await axios.post(
+    `https://graph.facebook.com/v23.0/${appId}/uploads`,
+    null,
+    {
+      params: {
+        file_name: fileName,
+        file_length: fileLength,
+        file_type: fileType
+      },
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`
+      }
+    }
+  );
+  const sessionId = sessionRes.data?.id; // e.g. "upload:MTphdHRh..."
+  if (!sessionId) {
+    throw new Error('Resumable upload: failed to get session id');
+  }
+
+  // Step 2: Upload file binary (OAuth header, file_offset: 0, raw binary body - no Content-Type)
+  const uploadRes = await axios.post(
+    `https://graph.facebook.com/v23.0/${sessionId}`,
+    fileBuffer,
+    {
+      headers: {
+        Authorization: `OAuth ${process.env.WHATSAPP_TOKEN}`,
+        'file_offset': '0'
+      },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
+    }
+  );
+  const handle = uploadRes.data?.h;
+  if (!handle) {
+    throw new Error('Resumable upload: failed to get file handle (h)');
+  }
+
+  return { id: handle };
+}
+
+exports.sendMedia = async ({ fileUrl, forTemplate }) => {
   const phoneId = process.env.WHATSAPP_PHONE_ID;
 
   try {
+    // Template creation requires Resumable Upload handle; simple /media returns numeric ID (invalid for templates)
+    if (forTemplate) {
+      const result = await uploadMediaForTemplate(fileUrl);
+      console.log('✅ Template media uploaded (resumable handle):', result.id?.substring(0, 20) + '...');
+      return result;
+    }
+
     const fileResponse = await axios.get(fileUrl, {
       responseType: 'stream'
     });
@@ -491,8 +570,20 @@ async function getOrCreateChat(phone) {
 exports.createTemplate = async (req, res) => {
   try {
     console.log("req.bodyreq.body " , req.body);
-    
-    const payload = buildTemplatePayload(req.body);
+
+    const body = { ...req.body };
+    // If Media header and fileUrl is provided (and no valid handle yet), do resumable upload and set media_upload_id
+    if (body.headerType === "Media" && body.fileUrl) {
+      const hasValidHandle = body.media_upload_id && String(body.media_upload_id).trim() && !/^\d+$/.test(String(body.media_upload_id).trim());
+        console.log("hasValidHandlehasValidHandle" , hasValidHandle);
+        
+      if (!hasValidHandle) {
+        const { id: handle } = await uploadMediaForTemplate(body.fileUrl);
+        body.media_upload_id = handle;
+      }
+    }
+
+    const payload = buildTemplatePayload(body);
 console.log("Final Payload:", JSON.stringify(payload, null, 2));
 // ffffffffffff
     const response = await axios.post(
@@ -514,6 +605,19 @@ console.log("Final Payload:", JSON.stringify(payload, null, 2));
       data: response.data
     });
   } catch (err) {
+    const apiError = err.response?.data?.error;
+    const code = apiError?.code;
+    const isInvalidHandle = code === 131009 && apiError?.error_subcode === 2494102;
+
+    if (isInvalidHandle) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          ...(err.response?.data || {}),
+          hint: 'Template media header requires a Resumable Upload handle. Call POST /whatsapp/upload with body: { "fileUrl": "<image-url>", "forTemplate": true }, then use the returned "id" as media_upload_id when creating the template.'
+        }
+      });
+    }
     return res.status(400).json({
       success: false,
       error: err.response?.data || err.message

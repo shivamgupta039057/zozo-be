@@ -5,11 +5,21 @@ exports.buildTemplatePayload = (uiData) => {
 
   // HEADER
   if (uiData.headerType === "Media") {
+    // header_handle: Resumable Upload handle (e.g. "4:::..."). Either pass media_upload_id (handle) or fileUrl (upload is done in createTemplate).
+    const handle = String(uiData.media_upload_id ?? "").trim();
+    if (!handle) {
+      throw new Error("For Media header provide either media_upload_id (Resumable Upload handle) or fileUrl (image URL; resumable upload will be done automatically).");
+    }
+    if (/^\d+$/.test(handle)) {
+      throw new Error(
+        "Invalid media_upload_id: use a Resumable Upload handle (from POST /whatsapp/upload with forTemplate: true) or pass fileUrl in this request so the server can upload for you."
+      );
+    }
     components.push({
       type: "HEADER",
-      format: uiData.mediaType.toUpperCase(), // IMAGE / VIDEO ,
+      format: uiData.mediaType.toUpperCase(), // IMAGE / VIDEO / DOCUMENT
       example: {
-        header_handle: [uiData.media_upload_id], // Use the uploaded media ID
+        header_handle: [handle],
       },
     });
   }
@@ -36,7 +46,7 @@ exports.buildTemplatePayload = (uiData) => {
     });
   }
 
-  if (uiData.buttons) {
+  if (uiData.buttons.legth > 0) {
     components.push({
       type: "BUTTONS",
       buttons: uiData.buttons,
