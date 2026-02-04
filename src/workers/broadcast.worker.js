@@ -31,8 +31,7 @@ broadcastQueue.process(async (job) => {
     await sendTemplate({
       phone: `91${lead.dataValues.phone}`,
       template_name: broadcast.dataValues.template_name,
-      language : "en_US"
-
+      language: "en_US",
     });
 
     await lead.update({ status: "SENT" });

@@ -2,6 +2,7 @@ const { statusCode, resMessage } = require("../../config/default.json");
 const Lead = require("../../pgModels/lead");
 const broadcastQueue = require("../../helper/redis");
 const { Op } = require("sequelize");
+const {buildDynamicWhereClause} = require("../../utils/filerDynamic");
 const { Broadcast,
     BroadcastFilter,
     BroadcastLead, } = require('../../pgModels/index')
@@ -69,7 +70,7 @@ exports.createBrodcaste = async (body) => {
         );
 
         // 3. Build WHERE condition dynamically
-        const where = buildWhere(filters);
+        const where = buildDynamicWhereClause(filters);
 
         // 4. Fetch leads based on filters
         const leads = await Lead.findAll({
@@ -164,9 +165,9 @@ console.log("Broadcast start called for ID:", broadcastId);
 
     console.log("ccccccccccccccccc")
     // 5. Update broadcast status
-    // await broadcast.update({
-    //   status: "RUNNING"
-    // });
+    await broadcast.update({
+      status: "RUNNING"
+    });
 
     return {
       statusCode: 200,
