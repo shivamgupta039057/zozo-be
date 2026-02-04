@@ -161,6 +161,18 @@ exports.sendTemplate = async ({ body }) => {
   }
 };
 
+exports.sendMedia = async ({ body }) => {
+  try {
+    return await services.sendMedia(body);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
 exports.getChat = async ({ body }) => {
   try {
     return await services.getChat(body);
@@ -199,7 +211,7 @@ exports.getMessagesByChatId = async ({ params }) => {
 };
 
 exports.createTemplate = async (req, res) => {
-  console.log("dddddddbodybodybodybody" , req.body);
+  // console.log("dddddddbodybodybodybody" , req.body);
   
   try {
     return await services.createTemplate(req, res);
