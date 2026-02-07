@@ -33,10 +33,10 @@ exports.generateLead = async ({ user,query,body }) => {
   }
 };
 
-exports.changeLeadStatus = async ({ body , params }) => {
+exports.changeLeadStatus = async ({ body , params,user }) => {
   
   try {
-    return await services.changeStatus(body , params);
+    return await services.changeStatus(body , params,user);
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -219,5 +219,29 @@ exports.commitImport = async ({ body, user }) => {
       success: false,
       message: error.message || 'Internal server error'
     };
+  }
+};
+
+
+exports.addFollowUp = async ({ body, user }) => {
+  try {
+    return await services.addFollowUp(body, user);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };  
+  }
+};
+
+exports.getActivityLog = async (req,res) => {
+  try {    return await services.getActivityLog(req,res);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };  
   }
 };

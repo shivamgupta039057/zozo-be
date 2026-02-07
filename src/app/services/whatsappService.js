@@ -6,7 +6,7 @@ const API_URL = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_I
 const API_URL_TEMPLATE = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`;
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const Sequelize = require("sequelize");
-const { BroadcastLog, LeadStatus } = require("../../pgModels/index");
+const { BroadcastLog, LeadStatus, ActivityHistory } = require("../../pgModels/index");
 const API_MEDIA_URL = `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_ID}/media`
 const FormData = require('form-data'); // Ensure this package is installed: npm install form-data
 // Import socket.io instance for real-time messaging
@@ -48,10 +48,12 @@ exports.handleIncomingMessage = async (payload) => {
   if (!lead) {
     const status = await LeadStatus.findOne({ where: { is_default: true } });
     const status_id = status ? status.id : null;
+    const assignedTo = await getRandomUserExceptRole1();
     lead = await Lead.create({
       whatsapp_number,
       source: "whatsapp",
-      status_id: status_id
+      status_id: status_id,
+      assignedTo: assignedTo //randomly assign to a user except role 1
     });
   }
 
@@ -122,7 +124,7 @@ exports.handleIncomingMessage = async (payload) => {
 
 
 
-exports.sendText = async ({ phone, text }) => {
+exports.sendText = async ({ phone, text }, user) => {
   const io = getIO();
 
   const chat = await getOrCreateChat(phone);
@@ -156,6 +158,20 @@ exports.sendText = async ({ phone, text }) => {
     message_type: "text",
     content: text,
     meta_message_id: response.data?.messages?.[0]?.id
+  });
+
+  //Activity History 
+  await ActivityHistory.create({
+    lead_id: chat.lead_id,
+    activity_type: "WHATSAPP",
+    title: "WhatsApp Message Sent",
+    description: text,
+    meta_data: {
+      message_type: "TEXT",
+      meta_message_id: response.data?.messages?.[0]?.id,
+      sent_via: "API"
+    },
+    created_by: user?.id || "SYSTEM"
   });
 
   await chat.update({
@@ -237,9 +253,9 @@ exports.sendMedia = async ({ fileUrl }) => {
 };
 
 
-exports.sendTemplate = async ({ phone, template_name, params=[], media = null }) => {
+exports.sendTemplate = async ({ phone, template_name, params = [], media = null }) => {
 
-  
+
   const io = getIO();
   const safeParams = [...params];
   const chat = await getOrCreateChat(phone);
@@ -291,6 +307,22 @@ exports.sendTemplate = async ({ phone, template_name, params=[], media = null })
     media_type: media?.type || null,
     media_url: media?.url || null,
     status: "sent"
+  });
+
+  await ActivityHistory.create({
+    lead_id: chat.lead_id,
+    activity_type: "WHATSAPP",
+    title: media?.type ? `View ${media.type}` : "WhatsApp Message Sent",
+    description: finalText,
+    meta_data: {
+      template_name,
+      message_type: "TEMPLATE",
+      media_type: media?.type || null,
+      media_url: media?.url || null,
+      meta_message_id: response.data?.messages?.[0]?.id,
+      sent_via: "API"
+    },
+    created_by: "SYSTEM"
   });
 
   await chat.update({
@@ -403,9 +435,9 @@ exports.getMessagesByChatId = async (params) => {
       // 👇 MEDIA handling
       media: msg.media_url
         ? {
-            type: msg.media_type,   // image | video | document
-            url: msg.media_url
-          }
+          type: msg.media_type,   // image | video | document
+          url: msg.media_url
+        }
         : null,
 
       status: msg.status,
@@ -446,10 +478,12 @@ async function getOrCreateChat(phone) {
   if (!lead) {
     const status = await LeadStatus.findOne({ where: { is_default: true } });
     const status_id = status ? status.id : null;
+    const assignedTo = await getRandomUserExceptRole1();
     lead = await Lead.create({
       whatsapp_number,
       source: "whatsapp",
-      status_id: status_id
+      status_id: status_id,
+      assignedTo: assignedTo //randomly assign to a user except role 1
     });
   }
 
@@ -477,9 +511,9 @@ exports.createTemplate = async (req, res) => {
   try {
     const payload = buildTemplatePayload(req.body);
 
-   
-    console.log("payloadpayloadpayloadpayload" , payload);
-// ffffffffffff
+
+    console.log("payloadpayloadpayloadpayload", payload);
+    // ffffffffffff
     const response = await axios.post(
       API_URL_TEMPLATE,
       payload,
