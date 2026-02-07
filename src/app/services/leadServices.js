@@ -330,7 +330,7 @@ exports.changeStatus = async (body, params, user) => {
       };
     }
 
-    // const oldStatusId = leadData.status_id;
+    const oldStatusId = leadData.status_id;
 
     // If there is no associated stage
     if (!status.stage_id && (!status.stage || !status.stage.id)) {
@@ -358,17 +358,17 @@ exports.changeStatus = async (body, params, user) => {
     });
 
 
-    // await ActivityHistory.create({
-    //   lead_id: leadId,
-    //   activity_type: "STATUS",
-    //   title: "Status Changed",
-    //   description: "Lead status updated",
-    //   meta_data: {
-    //     from_status_id: oldStatusId,
-    //     to_status_id: status.id,
-    //   },
-    //   created_by: user?.id ? Number(user.id) : null
-    // });
+    await ActivityHistory.create({
+      lead_id: leadId,
+      activity_type: "STATUS",
+      title: "Status Changed",
+      description: "Lead status updated",
+      meta_data: {
+        from_status_id: oldStatusId,
+        to_status_id: status.id,
+      },
+      created_by: user?.id ? Number(user.id) : null
+    });
 
 
 console.log("Lead status updated, fetching updated lead...");

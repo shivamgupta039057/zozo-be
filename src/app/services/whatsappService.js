@@ -272,6 +272,7 @@ exports.sendTemplate = async ({ phone, template_name, params = [], media = null 
   );
 
 
+
   // 3️⃣ send to meta
   const response = await axios.post(
     API_URL,
@@ -288,6 +289,8 @@ exports.sendTemplate = async ({ phone, template_name, params = [], media = null 
       }
     }
   );
+
+
 
   const bodyComponent = metaTemplate.components.find(
     c => c.type === "BODY"
@@ -322,7 +325,7 @@ exports.sendTemplate = async ({ phone, template_name, params = [], media = null 
       meta_message_id: response.data?.messages?.[0]?.id,
       sent_via: "API"
     },
-    created_by: "SYSTEM"
+    created_by: null
   });
 
   await chat.update({
