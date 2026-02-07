@@ -11,6 +11,7 @@ const insertDefaultLeadFields = require("../seed/leadFieldDefaults");
 // =========================
 const LeadFieldFactory = require('./LeadField');
 const FacebookConnectionFactory = require('./FacebookConnection');
+const ReceptionleadFactory = require('./receptionLead')
 const FbFieldMappingFactory = require('./FbFieldMapping');
 const BulkLeadUploadFactory = require('./BulkLeadUpload');
 
@@ -39,6 +40,7 @@ const { WhatsappChat, WhatsappMessage, WhatsappTemplate } = require('./whatsapp'
 // Model Initialization
 // =========================
 const LeadField = LeadFieldFactory(sequelizeInstance, Sequelize.DataTypes);
+const Reception = ReceptionleadFactory(sequelizeInstance, Sequelize.DataTypes);
 const FacebookConnection = FacebookConnectionFactory(sequelizeInstance, Sequelize.DataTypes);
 const FbFieldMapping = FbFieldMappingFactory(sequelizeInstance, Sequelize.DataTypes);
 
@@ -74,6 +76,9 @@ TemplatePermissionModel.belongsTo(MainMenuModel, { foreignKey: 'MenuId' });
 BulkLeadUpload.belongsTo(UserModel, { foreignKey: 'uploaded_by', as: 'uploader' });
 UserModel.hasMany(BulkLeadUpload, { foreignKey: 'uploaded_by', as: 'uploads' });
 
+// Reception model 
+Reception.belongsTo(Lead , {foreignKey : 'leadId' , as : 'lead'});
+Lead.hasMany(Reception,{foreignKey:'leadId' , as: "receptionleads"})
 // LeadStage <-> LeadStatus
 LeadStage.hasMany(LeadStatus, { foreignKey: 'stage_id', as: 'statuses' });
 LeadStatus.belongsTo(LeadStage, { foreignKey: 'stage_id', as: 'stage' });
@@ -153,6 +158,7 @@ module.exports = {
     sequelize: sequelizeInstance,
     LeadField,
     FacebookConnection,
+    Reception,
     FbFieldMapping,
     RawFacebookLead,
     RoleModel,
