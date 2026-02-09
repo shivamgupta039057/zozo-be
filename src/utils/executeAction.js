@@ -3,7 +3,7 @@ const {sendTemplate} = require("../app/services/whatsappService")
 // Extract Templates handler output logic outside the switch/case as a function
 async function handleTemplateAction(node,lead) {
   const {whatsapp_number} = lead || {};
-  console.log("📲 Sending WhatsApp to hsdkjhfkjhkjdh", node.data.selectedData);
+  console.log("📲 Sending WhatsApp to hsdkjhfkjhkjdh",);
   await sendTemplate({ phone: `91${whatsapp_number}`, template_name: node.data.selectedData.name,language:node.data.selectedData.language });
   return node.data.selectedData;
 

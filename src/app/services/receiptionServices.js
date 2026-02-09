@@ -12,10 +12,18 @@ exports.createReceptionlead = async (body) => {
   console.log("bodybodybodydddddddddddddd", body);
   const { leadId, name } = body;
 
+  console.log("leadId, nameleadId, name" , leadId, name);
+  
+
   try {
     let ReceptionData;
     if (leadId) {
+      console.log("dddddddddddddddsdfsdfasd" , leadId);
+      
       ReceptionData = await Reception.create(leadId, name);
+
+      console.log("ReceptionDataReceptionDataReceptionData" , ReceptionData);
+      
     } else {
       const { data, source, assignedTo, notes, name, email, whatsapp_number } =
         body;
@@ -49,7 +57,7 @@ exports.createReceptionlead = async (body) => {
         assignedTo: user?.id || null,
         created_by: user?.id || null,
       });
-      ReceptionData = await Reception.create(leadId, name);
+      ReceptionData = await Reception.create(lead.id, name);
 
       return {
         statusCode: statusCode.OK,

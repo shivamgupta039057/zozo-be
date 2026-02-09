@@ -13,11 +13,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       checkIn: {
         type: DataTypes.BOOLEAN,
-        allowNull: false,
-      },
-      checkOut: {
-        type: DataTypes.BOOLEAN,
-        allowNull: false,
+        defaultValue: true
       },
       leadId: {
         type: DataTypes.INTEGER,
