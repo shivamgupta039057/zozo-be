@@ -134,9 +134,9 @@ exports.receiveMessage = async ({ body }) => {
 
 
 
-exports.sendText = async ({ body }) => {
+exports.sendText = async ({ body ,user}) => {
   try {
-    return await services.sendText(body);
+    return await services.sendText(body,user);
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
@@ -147,11 +147,11 @@ exports.sendText = async ({ body }) => {
 };
 
 
-exports.sendTemplate = async ({ body }) => {
+exports.sendTemplate = async ({ body ,user}) => {
   console.log("dddddddbodybodybodybody" , body);
   
   try {
-    return await services.sendTemplate(body);
+    return await services.sendTemplate(body,user);
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,

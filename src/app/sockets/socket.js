@@ -23,6 +23,13 @@ module.exports = (io) => {
             socket.leave(`${data.chatId}`)
         });
 
+
+        // 🔹 USER ROOM (NEW - for alerts)
+        socket.on("joinUser", (userId) => {
+            socket.join(`user_${userId}`);
+            console.log(`User joined alert room: user_${userId}`);
+        });
+
         // Handle user disconnection
         socket.on('disconnect', () => {
             console.log('User disconnected');

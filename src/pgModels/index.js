@@ -11,6 +11,7 @@ const insertDefaultLeadFields = require("../seed/leadFieldDefaults");
 // =========================
 const LeadFieldFactory = require('./LeadField');
 const FacebookConnectionFactory = require('./FacebookConnection');
+const ReceptionleadFactory = require('./receptionLead')
 const FbFieldMappingFactory = require('./FbFieldMapping');
 const BulkLeadUploadFactory = require('./BulkLeadUpload');
 
@@ -21,6 +22,8 @@ const UserModelFactory = require('./userModel');
 
 const TemplatePermissionModelFactory = require('./templatePermissionModel');
 const MainMenuModelFactory = require('./MainMenu');
+const FollowUpFactory = require('./followupModel');
+const ActivityHistoryFactory = require('./activityHistoryModel');
 
 // Brodcaste Models
 const Broadcast = require('./brodcaste/Broadcast');
@@ -39,6 +42,7 @@ const { WhatsappChat, WhatsappMessage, WhatsappTemplate } = require('./whatsapp'
 // Model Initialization
 // =========================
 const LeadField = LeadFieldFactory(sequelizeInstance, Sequelize.DataTypes);
+const Reception = ReceptionleadFactory(sequelizeInstance, Sequelize.DataTypes);
 const FacebookConnection = FacebookConnectionFactory(sequelizeInstance, Sequelize.DataTypes);
 const FbFieldMapping = FbFieldMappingFactory(sequelizeInstance, Sequelize.DataTypes);
 
@@ -53,6 +57,9 @@ const FacebookIntegration = require('./FacebookIntegration')(sequelizeInstance, 
 const FbLeadDistributionRule = require('./FbLeadDistributionRule')(sequelizeInstance, Sequelize.DataTypes);
 const FbLeadDistributionState = require('./FbLeadDistributionState')(sequelizeInstance, Sequelize.DataTypes);
 const BulkLeadUpload = BulkLeadUploadFactory(sequelizeInstance, Sequelize.DataTypes);
+
+const FollowUp = FollowUpFactory(sequelizeInstance, Sequelize.DataTypes);
+const ActivityHistory = ActivityHistoryFactory(sequelizeInstance, Sequelize.DataTypes);
 // =========================
 // Model Associations
 // =========================
@@ -74,6 +81,9 @@ TemplatePermissionModel.belongsTo(MainMenuModel, { foreignKey: 'MenuId' });
 BulkLeadUpload.belongsTo(UserModel, { foreignKey: 'uploaded_by', as: 'uploader' });
 UserModel.hasMany(BulkLeadUpload, { foreignKey: 'uploaded_by', as: 'uploads' });
 
+// Reception model 
+Reception.belongsTo(Lead , {foreignKey : 'leadId' , as : 'lead'});
+Lead.hasMany(Reception,{foreignKey:'leadId' , as: "receptionleads"})
 // LeadStage <-> LeadStatus
 LeadStage.hasMany(LeadStatus, { foreignKey: 'stage_id', as: 'statuses' });
 LeadStatus.belongsTo(LeadStage, { foreignKey: 'stage_id', as: 'stage' });
@@ -128,6 +138,9 @@ FacebookIntegration.hasMany(FbLeadDistributionState, { foreignKey: 'integration_
 FbLeadDistributionState.belongsTo(UserModel, { foreignKey: 'user_id' });
 UserModel.hasMany(FbLeadDistributionState, { foreignKey: 'user_id' });
 
+// ActivityHistory <-> User (created_by)
+ActivityHistory.belongsTo(UserModel, { foreignKey: 'created_by', as: 'user' });
+
 // =========================
 // DB Initialization
 // =========================
@@ -153,6 +166,7 @@ module.exports = {
     sequelize: sequelizeInstance,
     LeadField,
     FacebookConnection,
+    Reception,
     FbFieldMapping,
     RawFacebookLead,
     RoleModel,
@@ -174,5 +188,6 @@ module.exports = {
     BulkLeadUpload,
     WhatsappChat,
     WhatsappMessage,
-    WhatsappTemplate
+    WhatsappTemplate,FollowUp,
+    ActivityHistory
 };

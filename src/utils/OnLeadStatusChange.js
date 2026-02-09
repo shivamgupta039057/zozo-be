@@ -30,7 +30,7 @@ module.exports = async function OnLeadStatusChange(lead, status) {
     }
   }
 
-  console.log("OnLeadStatusChange results:", results);
+
   // If there was only one result, return it directly; otherwise return array
   if (results.length === 0) return null;
   if (results.length === 1) return results[0];
