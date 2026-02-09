@@ -14,6 +14,8 @@ router.get('/getReceptionLead', auth, responseHandler(controller.getReceptionLea
 router.post('/updatefieldlist/:leadId', auth, responseHandler(controller.updateLeadFieldController));
 router.post('/deletefieldlist/:id', auth, responseHandler(controller.deleteLeadFieldController));
 router.get('/reorderfieldlist', auth, responseHandler(controller.reorderLeadFieldController));
+router.post('/checkOutStatus', auth,  responseHandler(controller.createCheckOutLead));
+
 
 
 module.exports = router;

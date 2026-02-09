@@ -14,6 +14,20 @@ exports.createReceptionlead = async ({ body }) => {
   }
 };
 
+exports.createCheckOutLead = async ({body }) => {
+  try {
+    console.log("ddddddddasdfsdvsdvsdcvsdcd");
+    
+    return await services.createCheckOutLead(body);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
 exports.getReceptionLeadController = async ({ query }) => {
   try {
     return await services.getReceptionLeadServices(query);

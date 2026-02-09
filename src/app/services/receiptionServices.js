@@ -12,18 +12,16 @@ exports.createReceptionlead = async (body) => {
   console.log("bodybodybodydddddddddddddd", body);
   const { leadId, name } = body;
 
-  console.log("leadId, nameleadId, name" , leadId, name);
-  
+  console.log("leadId, nameleadId, name", leadId, name);
 
   try {
     let ReceptionData;
     if (leadId) {
-      console.log("dddddddddddddddsdfsdfasd" , leadId);
-      
-      ReceptionData = await Reception.create(leadId, name);
+      console.log("sssssssdddddddddddddddsdfsdfasd", leadId, name);
 
-      console.log("ReceptionDataReceptionDataReceptionData" , ReceptionData);
-      
+      ReceptionData = await Reception.create(name,leadId);
+
+      console.log("ReceptionDataReceptionDataReceptionData", ReceptionData);
     } else {
       const { data, source, assignedTo, notes, name, email, whatsapp_number } =
         body;
@@ -69,6 +67,42 @@ exports.createReceptionlead = async (body) => {
         },
       };
     }
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: resMessage.Add_LEAD_FIELD_Data,
+      data: ReceptionData,
+    };
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
+exports.createCheckOutLead = async (body) => {
+  try {
+     const { receptionId } = body;
+
+  console.log("ddddddddddddddddddddddddddddddd" , receptionId);
+
+    const ReceptionData = await Reception.findOne({
+      where: { id: receptionId },
+    });
+
+    if (!ReceptionData) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "Reception data not found for the given leadId",
+      };
+    }
+
+    ReceptionData.checkIn = false;
+    await ReceptionData.save();
 
     return {
       statusCode: statusCode.OK,
