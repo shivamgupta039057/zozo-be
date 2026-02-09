@@ -32,13 +32,13 @@ module.exports = (sequelize, DataTypes) => {
     },
   );
 
-  Receptionlead.associate = (models) => {
-    Receptionlead.belongsTo(models.Lead, { foreignKey: "leadId", as: "lead" });
-    models.Lead.hasMany(Receptionlead, {
-      foreignKey: "leadId",
-      as: "receptionleads",
-    });
-  };
+  // Receptionlead.associate = (models) => {
+  //   Receptionlead.belongsTo(models.Lead, { foreignKey: "leadId", as: "lead" });
+  //   models.Lead.hasMany(Receptionlead, {
+  //     foreignKey: "leadId",
+  //     as: "receptionleads",
+  //   });
+  // };
 
   return Receptionlead;
 };

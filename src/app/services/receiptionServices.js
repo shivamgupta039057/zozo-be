@@ -1,6 +1,6 @@
 const { statusCode, resMessage } = require("../../config/default.json");
 const OnLeadFieldChange = require("../../utils/OnLeadFieldChange");
-const { LeadField, Lead, Reception, LeadStatus } = require("../../pgModels");
+const { LeadField, Lead, Reception, LeadStatus, UserModel } = require("../../pgModels");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -8,21 +8,15 @@ const { LeadField, Lead, Reception, LeadStatus } = require("../../pgModels");
  * @returns {object} - An object containing the status code, success flag, message, and home page data.
  * @throws Will throw an error if there is a database error.
  */
-exports.createReceptionlead = async (body) => {
-  console.log("bodybodybodydddddddddddddd", body);
+exports.createReceptionlead = async (body, user) => {
+
   const { leadId, name } = body;
-
-  console.log("leadId, nameleadId, name", leadId, name);
-
   try {
     let ReceptionData;
     if (leadId) {
-      console.log("sssssssdddddddddddddddsdfsdfasd", leadId, name);
-
-      ReceptionData = await Reception.create(name,leadId);
-
-      console.log("ReceptionDataReceptionDataReceptionData", ReceptionData);
+      ReceptionData = await Reception.create({ name, leadId });
     } else {
+
       const { data, source, assignedTo, notes, name, email, whatsapp_number } =
         body;
 
@@ -40,9 +34,6 @@ exports.createReceptionlead = async (body) => {
         }
       }
       const status = await LeadStatus.findOne({ where: { is_default: true } });
-
-      console.log("statusstatusstatusstatus", status);
-
       // Assign the lead to the user who created it
       const lead = await Lead.create({
         data,
@@ -55,7 +46,7 @@ exports.createReceptionlead = async (body) => {
         assignedTo: user?.id || null,
         created_by: user?.id || null,
       });
-      ReceptionData = await Reception.create(lead.id, name);
+      ReceptionData = await Reception.create({ leadId: lead.id, name });
 
       return {
         statusCode: statusCode.OK,
@@ -85,9 +76,9 @@ exports.createReceptionlead = async (body) => {
 
 exports.createCheckOutLead = async (body) => {
   try {
-     const { receptionId } = body;
+    const { receptionId } = body;
 
-  console.log("ddddddddddddddddddddddddddddddd" , receptionId);
+    console.log("ddddddddddddddddddddddddddddddd", receptionId);
 
     const ReceptionData = await Reception.findOne({
       where: { id: receptionId },
@@ -148,25 +139,60 @@ exports.getReceptionLeadServices = async (query) => {
   const { page = 1, limit = 10 } = query;
   try {
     // Pagination calculations
-    const offset = (page - 1) * limit;
+
 
     // Fetch Receptionlead records with associated Lead (as 'lead')
-    const receptionLeads = await Reception.findAndCountAll({
+    // const receptionLeads = await Reception.findAndCountAll({
+    //   include: [
+    //     {
+    //       model: Lead,
+    //       as: "lead", // This must match the alias used in the associate function in your model
+    //     },
+    //   ],
+    //   offset: Number(offset),
+    //   limit: Number(limit),
+    //   order: [["createdAt", "DESC"]],
+    // });
+    const pageNumber = Number(page);
+    const pageSize = Number(limit);
+    const offset = (pageNumber - 1) * pageSize;
+    const whereClause = {};
+
+  const receptionLeads = await Reception.findAndCountAll({
+      where: whereClause,
+
       include: [
         {
           model: Lead,
-          as: "lead", // This must match the alias used in the associate function in your model
+          as: "lead",
+
+          include: [
+            {
+              model: LeadStatus,
+              as: "status",
+              attributes: ["id", "name", "color"],
+            },
+            {
+              model: UserModel,
+              as: "assignedUser",
+              attributes: ["id", "name", "email"],
+            },
+          ],
         },
       ],
-      offset: Number(offset),
-      limit: Number(limit),
+
       order: [["createdAt", "DESC"]],
+      offset,
+      limit,
     });
 
     return {
       statusCode: statusCode.OK,
       success: true,
-      message: resMessage.GET_LEAD_FIELD_Data,
+      message: receptionLeads.rows.length
+        ? "Reception Leads fetched successfully"
+        : "No data found",
+
       data: {
         rows: receptionLeads.rows,
         count: receptionLeads.count,
@@ -175,6 +201,7 @@ exports.getReceptionLeadServices = async (query) => {
         totalPages: Math.ceil(receptionLeads.count / limit),
       },
     };
+  
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,

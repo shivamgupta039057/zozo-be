@@ -2,9 +2,9 @@ const services = require('../services/receiptionServices.js');
 const { statusCode } = require('../../config/default.json');
 
 
-exports.createReceptionlead = async ({ body }) => {
+exports.createReceptionlead = async ({ body ,user}) => {
   try {
-    return await services.createReceptionlead(body);
+    return await services.createReceptionlead(body,user);
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
