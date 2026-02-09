@@ -20,6 +20,15 @@ async function insertDefaultLeadStatuses(LeadStatus) {
           is_default: true,
           is_active: true,
         },
+        {
+          stage_id: 2,
+          name: "Office Visit",
+          color: "#dfcddc",
+          order: 1,
+          is_default: false,
+          is_OffineVisit: true,
+          is_active: true,
+        },
       ]);
 
       console.log("✅ Default LeadStatuses inserted successfully.");
