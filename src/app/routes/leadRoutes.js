@@ -31,5 +31,12 @@ router.get("/sheets/:id", auth,responseHandler(controller.getSheets));
 router.post("/validate",auth, responseHandler(controller.validateMapping));
 router.post("/duplicates", auth,responseHandler(controller.checkDuplicates));
 router.post("/commit", auth,responseHandler(controller.commitImport));
+
+
+//follow up routes
+router.post('/add-followup', auth, responseHandler(controller.addFollowUp));
+
+// Activity log routes
+router.get('/activity-log/:leadId', responseHandler(controller.getActivityLog));
 module.exports = router;
 
