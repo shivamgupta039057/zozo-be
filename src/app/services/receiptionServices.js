@@ -33,7 +33,7 @@ exports.createReceptionlead = async (body, user) => {
           };
         }
       }
-      const status = await LeadStatus.findOne({ where: { is_default: true } });
+      const status = await LeadStatus.findOne({ where: { is_OffineVisit: true } });
       // Assign the lead to the user who created it
       const lead = await Lead.create({
         data,

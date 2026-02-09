@@ -20,13 +20,13 @@ async function insertDefaultLeadStages(LeadStage) {
         },
         {
           name: "Active stage",
-          order: 1,
+          order: 2,
           color: "#d9f1d9",
           is_active: true,
         },
         {
           name: "Closed stage",
-          order: 1,
+          order: 3,
           color: "#c9f2c9",
           is_active: true,
         },
