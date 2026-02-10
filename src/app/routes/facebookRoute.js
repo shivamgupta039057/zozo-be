@@ -34,7 +34,7 @@
 // // // Save field mapping
 // // router.post("/form/mapping", FacebookController.saveMapping);
 
-
+const responseHandler = require("../../helper/responseHandler");
 const express = require('express');
 const router = express.Router();
 const FacebookController = require('../controllers/FacebookController');
