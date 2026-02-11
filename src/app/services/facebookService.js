@@ -129,11 +129,12 @@ const { fetchFacebookLead, applyFieldMapping, assignLeadByPercentage } = require
 const { sequelize,
   FacebookConnection, FacebookIntegration,
   FbFieldMapping, FbLeadDistributionState, FbLeadDistributionRule,
-  RawFacebookLead
+  RawFacebookLead,Lead
 } = require('../../pgModels/index');
 
 const BASE_URL = 'https://graph.facebook.com/v24.0';
 const { statusCode } = require("../../config/default.json");
+const { Json } = require('sequelize/lib/utils');
 
 module.exports = {
 
@@ -141,13 +142,13 @@ module.exports = {
      FACEBOOK READ APIs
   ========================== */
 
-  async getUserPages(access_token) {
+  async getUserPages() {
     try {
-      if (!access_token) throw new Error('Access token is required');
+      // if (!access_token) throw new Error('Access token is required');
 
       const data = await getRequest(
         `${BASE_URL}/me/accounts`,
-        { access_token }
+        { access_token: process.env.FB_ACCESS_TOKEN }
       );
 
       return {
@@ -447,70 +448,84 @@ module.exports = {
     return true;
   },
 
+
+
+  async handleWebhook(req, res) {
+    try {
+      console.log('Received Facebook webhook:', JSON.stringify(req.body));
+      const entry = req.body.entry?.[0];
+      const change = entry?.changes?.[0];
+
+      console.log('Parsed webhook change:', JSON.stringify(change));
+
+      if (!change || change.field !== 'leadgen') {
+        return res.sendStatus(200);
+      }
+
+      const {
+        leadgen_id,
+        form_id,
+        page_id
+      } = change.value;
+
+      console.log(`Processing leadgen webhook - LeadGenID: ${leadgen_id}, FormID: ${form_id}, PageID: ${page_id}`);
+      // 1️⃣ find integration
+      const integration = await FacebookIntegration.findOne({
+        where: {
+          fb_page_id: page_id,
+          fb_form_id: form_id,
+          status: 'active',
+        },
+      });
+
+      if (!integration) {
+        console.log('No active integration found');
+        return res.sendStatus(200);
+      }
+
+      // 2️⃣ fetch lead from facebook
+      const leadData = await fetchFacebookLead(
+        leadgen_id,
+        process.env.FB_ACCESS_TOKEN
+
+      );
+      console.log('Fetched lead data from Facebook:', JSON.stringify(leadData));
+
+      // 3️⃣ apply mapping
+      const mappedLead = await applyFieldMapping(
+        integration.id,
+        leadData
+      );
+
+   
+      // 4️⃣ assign user (percentage logic)
+      const assignedUserId = await assignLeadByPercentage(
+        integration.id
+      );
+
+      console.log(`Assigned user ID ${assignedUserId} for lead ${leadgen_id}`);
+      // 5️⃣ save lead
+      await Lead.create({
+        integration_id: integration.id,
+        assignedTo: assignedUserId,
+        name: mappedLead.name,
+        whatsapp_number: mappedLead.phone,
+        email: mappedLead.email,
+        data: leadData,
+        source:"facebook",
+        createdBy:1,
+      });
+
+   
+    } catch (err) {
+      console.error('Webhook error:', err);
+      return res.sendStatus(500);
+    }
+  },
+
 };
 
-exports.handleWebhook = async (req, res) => {
-  try {
-    const entry = req.body.entry?.[0];
-    const change = entry?.changes?.[0];
 
-    if (!change || change.field !== 'leadgen') {
-      return res.sendStatus(200);
-    }
-
-    const {
-      leadgen_id,
-      form_id,
-      page_id
-    } = change.value;
-
-    // 1️⃣ find integration
-    const integration = await FacebookIntegration.findOne({
-      where: {
-        fb_page_id: page_id,
-        fb_form_id: form_id,
-        status: 'active',
-      },
-    });
-
-    if (!integration) {
-      console.log('No active integration found');
-      return res.sendStatus(200);
-    }
-
-    // 2️⃣ fetch lead from facebook
-    const leadData = await fetchFacebookLead(
-      leadgen_id,
-      integration.access_token
-    );
-
-    // 3️⃣ apply mapping
-    const mappedLead = await applyFieldMapping(
-      integration.id,
-      leadData
-    );
-
-    // 4️⃣ assign user (percentage logic)
-    const assignedUserId = await assignLeadByPercentage(
-      integration.id
-    );
-
-    // 5️⃣ save lead
-    await Lead.create({
-      integration_id: integration.id,
-      assigned_user_id: assignedUserId,
-      name: mappedLead.name,
-      phone: mappedLead.phone,
-      email: mappedLead.email,
-      raw_payload: leadData,
-    });
-
-    return res.sendStatus(200);
-  } catch (err) {
-    console.error('Webhook error:', err);
-    return res.sendStatus(500);
-  }
-};
 
 
 

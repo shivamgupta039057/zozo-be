@@ -11,6 +11,7 @@ const menuList = [
   { name: "Bulk Upload", path: "/bulk-import/add", order: 9, icon: "Funnel" },
   { name: "Workflow", path: "/workflow", order: 10, icon: "Workflow" },
   { name: "WhatsApp", path: "/whatsapp-ui", order: 3, icon: "whatsapp" },
+  { name: "Reception", path: "/reception-management", order: 9, icon: "Funnel" },
   {
     name: "Integrations",
     path: "/integrations",

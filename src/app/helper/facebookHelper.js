@@ -6,11 +6,21 @@ async function fetchFacebookLead(leadgenId, pageToken) {
 
   const { data } = await axios.get(url, {
     params: {
-      fields: 'created_time,field_data',
+      fields: `
+      id,
+      created_time,
+      ad_id,
+      ad_name,
+      adset_id,
+      adset_name,
+      campaign_id,
+      field_data,
+      is_organic,
+      platform
+    `,
       access_token: pageToken,
     },
   });
-
   return data;
 }
 
@@ -81,6 +91,7 @@ async function applyFieldMapping(integrationId, leadData) {
     }
   }
 
+console.log("Mapped Lead FINAL:", mapped);
   return mapped;
 }
 module.exports = {

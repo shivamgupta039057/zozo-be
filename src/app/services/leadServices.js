@@ -7,6 +7,7 @@ const {
   BulkLeadUpload,
   LeadField,
   ActivityHistory,
+  FollowUp,
 } = require("../../pgModels");
 const moment = require("moment");
 const { Op, Sequelize } = require("sequelize");
@@ -1009,7 +1010,7 @@ exports.addFollowUp = async (body, user) => {
       };
     }
 
-    const user_id = req.user.id;
+    const user_id = user.id;
 
     const followupTime = moment()
       .add(minutes, "minutes")
@@ -1037,6 +1038,51 @@ exports.addFollowUp = async (body, user) => {
     };
   }
 }
+
+
+exports.addNote = async (body, user) => {
+  try {
+    const { lead_id, note } = body;
+
+    if (!lead_id || !note) {
+      return {
+        statusCode: statusCode.BAD_REQUEST,
+        success: false,
+        message: "lead_id and note are required",
+      };
+    }
+
+    const lead = await Lead.findByPk(lead_id);
+
+    if (!lead) {
+      return {
+        statusCode: statusCode.NOT_FOUND,
+        success: false,
+        message: "Lead not found",
+      };
+    }
+
+    // If you want to track who added the note later
+    const user_id = user.id;
+
+    lead.notes = note;
+    await lead.save();
+
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      message: "Note added successfully",
+      data: lead,
+    };
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };
+  }
+};
+
 
 
 exports.getActivityLog = async (req, res) => {

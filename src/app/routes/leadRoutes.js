@@ -35,6 +35,8 @@ router.post("/commit", auth,responseHandler(controller.commitImport));
 
 //follow up routes
 router.post('/add-followup', auth, responseHandler(controller.addFollowUp));
+router.post('/add-note', auth, responseHandler(controller.addNote));
+
 
 // Activity log routes
 router.get('/activity-log/:leadId', responseHandler(controller.getActivityLog));
