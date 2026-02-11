@@ -113,7 +113,7 @@ module.exports = {
 
   // Facebook APIs (read-only)
   async getUserPages(req, res) {
-    const response = await FacebookService.getUserPages(req.query.access_token);
+    const response = await FacebookService.getUserPages();
     res.status(response.statusCode).json(response);
   },
 
@@ -141,12 +141,12 @@ module.exports = {
    */
   async createIntegration(req, res) {
     try {
-      const { page, form ,pageAccessToken} = req.body;
+      const { page, form } = req.body;
       const integration = await FacebookService.createIntegration({
         userId: req.user.id,
         page,
         form,
-        pageAccessToken
+        pageAccessToken: process.env.FB_ACCESS_TOKEN
       });
       res.json(integration);
     } catch (error) {
@@ -155,7 +155,7 @@ module.exports = {
   },
 
 
-    async saveIntegrationMappings(req, res) {
+  async saveIntegrationMappings(req, res) {
     try {
       const integrationId = req.params.id;
       const { mappings } = req.body;
@@ -193,7 +193,7 @@ module.exports = {
 
 
 
-  
+
   // Webhook verify
   facebookWebhookVerify(req, res) {
     const token = process.env.FB_VERIFY_TOKEN;
@@ -207,12 +207,24 @@ module.exports = {
   },
 
   // Webhook receive
+  // async facebookWebhookEvent(req, res) {
+  //   await FacebookService.handleWebhook(req,res);
+  //   res.sendStatus(200);
+  // }
+
+
   async facebookWebhookEvent(req, res) {
-    await FacebookService.handleWebhook(req,res);
-    res.sendStatus(200);
-  }
+    try {
+      console.log('Received Facebook webhook event:', JSON.stringify(req.body));
+      await FacebookService.handleWebhook(req, res);
+      res.json({ success: true, message: 'Webhook event processed' });
+    } catch (err) {
+      console.error('Webhook processing error:', err);
+      res.status(400).json({ success: false, message: err.message });
+    }
+  },
 };
 
 
 
-  
+

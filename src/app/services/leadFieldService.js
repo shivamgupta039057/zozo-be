@@ -1,6 +1,6 @@
 const { statusCode, resMessage } = require("../../config/default.json");
 const OnLeadFieldChange = require("../../utils/OnLeadFieldChange");
-const {LeadField,Lead}= require("../../pgModels");
+const {LeadField,Lead, ActivityHistory}= require("../../pgModels");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -155,6 +155,18 @@ exports.updateLeadFieldServices = async (params, body) => {
       updatePayload,
       { where: { id: leadId } }
     );
+
+        // await ActivityHistory.create({
+        //   lead_id: leadId,
+        //   activity_type: "FIELD",
+        //   title: "Field Changed",
+        //   description: "Lead Field updated",
+        //   meta_data: {
+        //     from_status_id: oldStatusId,
+        //     to_status_id: status.id,
+        //   },
+        //   created_by: user?.id ? Number(user.id) : null
+        // });
 
     return {
       statusCode: statusCode.OK,
