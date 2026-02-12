@@ -59,8 +59,9 @@ async function chnageActiveStatus() {
 }
 
 
-cron.schedule("* * * * *", async () => {
-  console.log("⏰ Cron started: Checking due follow-ups");
+// cron.schedule("* * * * *", async () => {
+  cron.schedule("*/1 * * * * *", async () => {
+  // console.log("⏰ Cron started: Checking due follow-ups");
   const dueFollowUps = await FollowUp.findAll({
     where: {
       followup_time: { [Op.lte]: new Date() },
@@ -68,7 +69,9 @@ cron.schedule("* * * * *", async () => {
     },
   });
 
+  console.log(`Found ${dueFollowUps.length} due follow-ups`);
   for (const f of dueFollowUps) {
+
     sendAlertToUser(f.user_id, {
       lead_id: f.lead_id,
       message: "⏰ Time to call this lead",

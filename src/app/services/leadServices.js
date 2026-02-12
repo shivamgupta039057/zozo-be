@@ -6,7 +6,7 @@ const {
   UserModel,
   BulkLeadUpload,
   LeadField,
-  ActivityHistory,
+  ActivityHistory,FollowUp
 } = require("../../pgModels");
 const moment = require("moment");
 const { Op, Sequelize } = require("sequelize");
@@ -16,7 +16,7 @@ const WorkFlowQueue = require("../../pgModels/workflowQueueModel");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { parseExcel, buildLeadPayload, buildAssignmentPlan, parseExcelFromS3 } = require("../../utils/leadBulkInsert");
+const { buildLeadPayload, buildAssignmentPlan, parseFileFromS3 } = require("../../utils/leadBulkInsert");
 const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap, buildDynamicWhereClause } = require("../../utils/filerDynamic");
 const { default: axios } = require("axios");
 const OnLeadStatusChange = require("../../utils/OnLeadStatusChange");
@@ -371,7 +371,7 @@ exports.changeStatus = async (body, params, user) => {
     });
 
 
-console.log("Lead status updated, fetching updated lead...");
+    console.log("Lead status updated, fetching updated lead...");
     const updatedLead = await Lead.findByPk(leadId, {
       include: [{ model: LeadStatus, as: "status" }],
     });
@@ -671,48 +671,105 @@ exports.uploadFile = async (file, body, user) => {
 };
 
 // Step 2: Get Sheets and Headers
+// exports.getSheets = async (uploadId) => {
+//   try {
+//     const upload = await BulkLeadUpload.findByPk(uploadId);
+//     if (!upload) throw new Error("Upload record not found");
+
+//     console.log("Fetching file from S3:", upload.file_path);
+
+//     // 1. Download the file from S3 as an ArrayBuffer
+//     const response = await axios.get(upload.file_path, {
+//       responseType: "arraybuffer",
+//     });
+//     const buffer = response.data;
+
+//     // 2. Use XLSX.read (NOT readFile) to parse the buffer
+//     const wb = XLSX.read(buffer, { type: "buffer" });
+
+//     const sheetName = wb.SheetNames[0];
+//     const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
+//       header: 1,
+//     })[0];
+
+//     console.log("Extracted headers:", headers);
+
+//     return {
+//       message: "Sheets fetched successfully",
+//       statusCode: statusCode.OK,
+//       success: true,
+//       sheets: wb.SheetNames,
+//       headers,
+//     };
+//   } catch (error) {
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: error.message,
+//     };
+//   }
+// };
 exports.getSheets = async (uploadId) => {
   try {
     const upload = await BulkLeadUpload.findByPk(uploadId);
     if (!upload) throw new Error("Upload record not found");
 
-    console.log("Fetching file from S3:", upload.file_path);
+    const extension = path.extname(upload.file_path).toLowerCase();
 
-    // 1. Download the file from S3 as an ArrayBuffer
+    // If CSV → No sheets
+    if (extension === ".csv") {
+      const rows = await parseFileFromS3(upload.file_path);
+      const headers = Object.keys(rows[0] || {});
+
+      return {
+        message: "CSV headers fetched successfully",
+        statusCode: statusCode.OK,
+        success: true,
+        sheets: ["CSV"],
+        headers
+      };
+    }
+
+    // If Excel
     const response = await axios.get(upload.file_path, {
       responseType: "arraybuffer",
     });
-    const buffer = response.data;
 
-    // 2. Use XLSX.read (NOT readFile) to parse the buffer
-    const wb = XLSX.read(buffer, { type: "buffer" });
+    const workbook = XLSX.read(response.data, { type: "buffer" });
 
-    const sheetName = wb.SheetNames[0];
-    const headers = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
-      header: 1,
-    })[0];
-
-    console.log("Extracted headers:", headers);
+    const sheetName = workbook.SheetNames[0];
+    const headers = XLSX.utils.sheet_to_json(
+      workbook.Sheets[sheetName],
+      { header: 1 }
+    )[0];
 
     return {
       message: "Sheets fetched successfully",
       statusCode: statusCode.OK,
       success: true,
-      sheets: wb.SheetNames,
-      headers,
+      sheets: workbook.SheetNames,
+      headers
     };
+
   } catch (error) {
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: error.message,
+      message: error.message
     };
   }
 };
 
+
 // Step 3: Validate Mapping
-exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
+exports.validateMapping = async ({
+  valmapping,
+  uploadId,
+  sheet,
+  mapping
+}) => {
   try {
+
     if (!valmapping.whatsapp_number) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -721,18 +778,22 @@ exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
       };
     }
 
-    const fields = await LeadField.findAll({ where: { is_active: true } });
-    console.log(
-      "Valid lead fields:",
-      fields.map((f) => f.name)
-    );
-    const validFields = fields.map((f) => f.name);
-
-    Object.keys(valmapping.data || {}).forEach((f) => {
-      if (!validFields.includes(f)) throw new Error(`Invalid field: ${f}`);
+    // Validate dynamic fields
+    const fields = await LeadField.findAll({
+      where: { is_active: true }
     });
 
+    const validFields = fields.map(f => f.name);
+
+    Object.keys(valmapping.data || {}).forEach(f => {
+      if (!validFields.includes(f)) {
+        throw new Error(`Invalid field: ${f}`);
+      }
+    });
+
+    // Get upload record
     const upload = await BulkLeadUpload.findByPk(uploadId);
+
     if (!upload) {
       return {
         statusCode: statusCode.BAD_REQUEST,
@@ -740,52 +801,66 @@ exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
         message: "Upload record not found",
       };
     }
-    console.log("Upload record:", upload.dataValues);
 
-    // Download the file from S3 (URL in upload.file_path)
-    // Use axios to fetch as arraybuffer, then parse with XLSX
-    const axiosResp = await axios.get(upload.file_path, { responseType: "arraybuffer" });
-    const buffer = axiosResp.data;
-    const workbook = XLSX.read(buffer, { type: "buffer" });
+    // USE UNIVERSAL PARSER (Excel + CSV)
+    const rows = await parseFileFromS3(
+      upload.file_path,
+      sheet
+    );
 
-    if (!workbook.SheetNames.includes(sheet)) {
+    if (!rows.length) {
       return {
         statusCode: statusCode.BAD_REQUEST,
         success: false,
-        message: "Sheet not found in the uploaded file",
+        message: "No rows found in file",
       };
     }
 
-    const ws = workbook.Sheets[sheet];
-    const rows = XLSX.utils.sheet_to_json(ws);
+    // Extract whatsapp numbers safely
+    const numbers = rows
+      .map(r => r[mapping.whatsapp_number])
+      .filter(Boolean)
+      .map(num =>
+        String(num).replace(/\.0$/, "").trim()
+      );
 
-    // mapping.whatsapp_number is column name from mapping
-    const numbers = rows.map((r) => r[mapping.whatsapp_number]).filter(Boolean);
-
-    if (numbers.length === 0) {
+    if (!numbers.length) {
       return {
         statusCode: statusCode.BAD_REQUEST,
         success: false,
-        message: "No WhatsApp numbers found in the sheet per mapping.",
+        message:
+          "No WhatsApp numbers found in file per mapping.",
       };
     }
 
+    // Check duplicates in DB
     const duplicates = await Lead.findAll({
-      where: { whatsapp_number: { [Op.in]: numbers } },
+      where: {
+        whatsapp_number: {
+          [Op.in]: numbers
+        }
+      },
       attributes: ["whatsapp_number"],
     });
 
-    return { statusCode: statusCode.OK, success: true, duplicates };
+    return {
+      statusCode: statusCode.OK,
+      success: true,
+      duplicates
+    };
+
   } catch (error) {
     console.log("Error in validateMapping:", error);
 
     return {
       statusCode: statusCode.BAD_REQUEST,
       success: false,
-      message: error.message || "Error validating mapping",
+      message:
+        error.message || "Error validating mapping",
     };
   }
 };
+
 
 // exports.validateMapping = async ({ valmapping, uploadId, sheet, mapping }) => {
 //   try {
@@ -859,26 +934,18 @@ exports.commitImport = async ({ uploadId, sheet, mapping, assignment, user }) =>
       };
     }
 
-    let rows = [];
-    let filePath = upload.file_path;
+    //  Parse Excel (S3 or Local)
+    const filePath = upload.file_path;
+    const isS3Url =
+      typeof filePath === "string" &&
+      (filePath.startsWith("http://") ||
+        filePath.startsWith("https://"));
 
-    // basic check to see if file path is an S3 url
-    const isS3Url = typeof filePath === 'string' && (filePath.startsWith('http://') || filePath.startsWith('https://'));
+    const rows = await parseFileFromS3(upload.file_path, sheet);
+    // const rows = isS3Url
+    //   ? await exports.parseExcelFromS3(filePath, sheet)
+    //   : exports.parseExcel(filePath, sheet);
 
-    if (isS3Url) {
-      // Download excel file from S3 url using axios, parse as arraybuffer, then parse using XLSX
-      const fileResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
-      const data = fileResponse.data;
-      const workbook = XLSX.read(data, { type: 'buffer' });
-
-      // Try getting specific sheet, else get the first one
-      let wsname = sheet || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[wsname];
-      rows = XLSX.utils.sheet_to_json(worksheet);
-    } else {
-      // Assume file is local path or accessible to parseExcel util
-      rows = parseExcel(filePath, sheet);
-    }
 
     if (!rows.length) {
       return {
@@ -1009,7 +1076,7 @@ exports.addFollowUp = async (body, user) => {
       };
     }
 
-    const user_id = req.user.id;
+    const user_id = user.id;
 
     const followupTime = moment()
       .add(minutes, "minutes")
