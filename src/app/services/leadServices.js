@@ -1089,6 +1089,17 @@ exports.addFollowUp = async (body, user) => {
       followup_time: followupTime,
     });
 
+      await logActivity({
+      leadId: lead_id,
+      type: "FOLLOW_UP",
+      title: "Follow-up Added",
+      description: `Follow-up scheduled at ${followupTime}`,
+      metaData: {
+        followup_time: followupTime,
+        minutes: minutes
+      },
+      userId: user_id
+    });
 
     return {
       statusCode: statusCode.OK,
