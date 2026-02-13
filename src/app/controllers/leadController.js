@@ -235,6 +235,18 @@ exports.addFollowUp = async ({ body, user }) => {
   }
 };
 
+exports.addNote = async ({ body, user }) => {
+  try {
+    return await services.addNote(body, user);
+  } catch (error) {
+    return {
+      statusCode: statusCode.BAD_REQUEST,
+      success: false,
+      message: error.message,
+    };  
+  }
+};
+
 exports.getActivityLog = async (req,res) => {
   try {    return await services.getActivityLog(req,res);
   } catch (error) {

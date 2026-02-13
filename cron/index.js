@@ -4,13 +4,13 @@ const cron = require("node-cron");
 const sequelize = require('../src/config/postgres.config');
 const { sendAlertToUser } = require("../src/app/sockets/socketManager");
 const { WhatsappChat, WhatsappMessage } = require("../src/pgModels/whatsapp");
-const { FollowUp } = require("../src/pgModels");
+const { FollowUp ,Lead} = require("../src/pgModels");
 // Ensure DB connection before running cron jobs
-sequelize.authenticate().then(() => {
-  console.log("Database connection established for cron.");
-}).catch((err) => {
-  console.error("Unable to connect to the database in cron:", err);
-});
+// sequelize.authenticate().then(() => {
+//   console.log("Database connection established for cron.");
+// }).catch((err) => {
+//   console.error("Unable to connect to the database in cron:", err);
+// });
 
 // Cron job to check and update 24-hour active status of WhatsApp chats
 async function chnageActiveStatus() {
@@ -59,14 +59,21 @@ async function chnageActiveStatus() {
 }
 
 
-// cron.schedule("* * * * *", async () => {
-  cron.schedule("*/1 * * * * *", async () => {
+cron.schedule("* * * * *", async () => {
+  // cron.schedule("*/1 * * * * *", async () => {
   // console.log("⏰ Cron started: Checking due follow-ups");
   const dueFollowUps = await FollowUp.findAll({
     where: {
       followup_time: { [Op.lte]: new Date() },
       status: "pending",
     },
+     include: [
+    {
+      model: Lead,
+       as: 'lead',
+      attributes: ["id", "name","whatsapp_number", "email"],
+    },
+  ],
   });
 
   console.log(`Found ${dueFollowUps.length} due follow-ups`);
@@ -74,9 +81,12 @@ async function chnageActiveStatus() {
 
     sendAlertToUser(f.user_id, {
       lead_id: f.lead_id,
+        lead_name: f.lead.name,
+        lead_whatsapp: f.lead.whatsapp_number,
+        lead_email: f.lead.email,
       message: "⏰ Time to call this lead",
     });
-
+  await f.update({ status: "done" });
   }
 });
 

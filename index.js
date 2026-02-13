@@ -47,6 +47,7 @@ app.use((err, req, res, next) => {
 })
 
 const PORT = devConfig.PORT || 6060;
+require('./cron');
 
 
 server.listen(PORT, async () => {
