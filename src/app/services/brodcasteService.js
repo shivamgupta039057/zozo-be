@@ -14,10 +14,6 @@ const { Broadcast,
  * @throws Will throw an error if there is a database error.
  */
 
-
-
-
-
 function buildWhere(filters) {
     const where = {};
 

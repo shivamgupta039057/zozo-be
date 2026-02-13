@@ -25,7 +25,8 @@ module.exports = (io) => {
 
 
         // 🔹 USER ROOM (NEW - for alerts)
-        socket.on("joinUser", (userId) => {
+        socket.on("joinUser", ({userId}) => {
+            console.log(userId)
             socket.join(`user_${userId}`);
             console.log(`User joined alert room: user_${userId}`);
         });

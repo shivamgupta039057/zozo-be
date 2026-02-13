@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     activity_type: {
-      type: DataTypes.ENUM("CALL", "STATUS", "WHATSAPP", "NOTE", "SYSTEM" ,  "FIELD"),
+      type: DataTypes.ENUM("CALL", "STATUS", "WHATSAPP", "NOTE", "SYSTEM" ,"FIELD", "FOLLOW_UP"),
       allowNull: false,
     },
     title: {

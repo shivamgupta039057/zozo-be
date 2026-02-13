@@ -26,7 +26,7 @@
 
 // module.exports = multer({ storage: storage })
 
-
+const path = require("path");
 const { S3Client } = require("@aws-sdk/client-s3");
 const multer = require("multer");
 const multerS3 = require("multer-s3");
@@ -56,7 +56,25 @@ const upload = multer({
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
             cb(null, `${folder}/${uniqueSuffix}-${file.originalname}`);
         }
-    })
+    }),
+    fileFilter: function (req, file, cb) {
+        const allowed = [".xlsx", ".xls", ".csv"];
+        const ext = path
+            .extname(file.originalname)
+            .toLowerCase();
+
+        if (!allowed.includes(ext)) {
+            return cb(
+                new Error("Only Excel and CSV files are allowed")
+            );
+        }
+
+        cb(null, true);
+    },
+
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
 });
 
 module.exports = upload;
