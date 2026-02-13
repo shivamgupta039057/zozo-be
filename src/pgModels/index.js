@@ -140,6 +140,9 @@ UserModel.hasMany(FbLeadDistributionState, { foreignKey: 'user_id' });
 
 // ActivityHistory <-> User (created_by)
 ActivityHistory.belongsTo(UserModel, { foreignKey: 'created_by', as: 'user' });
+// FollowUp <-> Lead
+FollowUp.belongsTo(Lead, {foreignKey: 'lead_id',as: 'lead'});
+Lead.hasMany(FollowUp, {foreignKey: 'lead_id',as: 'followups'});
 
 // =========================
 // DB Initialization

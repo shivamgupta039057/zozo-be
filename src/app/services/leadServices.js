@@ -20,6 +20,7 @@ const { buildLeadPayload, buildAssignmentPlan, parseFileFromS3 } = require("../.
 const { SEARCH_FIELD_MAP, FIXED_FIELDS, operatorMap, buildDynamicWhereClause } = require("../../utils/filerDynamic");
 const { default: axios } = require("axios");
 const OnLeadStatusChange = require("../../utils/OnLeadStatusChange");
+const { formatActivity, logActivity } = require("../../utils/ActivityLogger");
 /**
  * Add or update dynamic home page services according to schema.
  *
@@ -1088,6 +1089,17 @@ exports.addFollowUp = async (body, user) => {
       followup_time: followupTime,
     });
 
+      await logActivity({
+      leadId: lead_id,
+      type: "FOLLOW_UP",
+      title: "Follow-up Added",
+      description: `Follow-up scheduled at ${followupTime}`,
+      metaData: {
+        followup_time: followupTime,
+        minutes: minutes
+      },
+      userId: user_id
+    });
 
     return {
       statusCode: statusCode.OK,
@@ -1134,6 +1146,17 @@ exports.addNote = async (body, user) => {
     lead.notes = note;
     await lead.save();
 
+     await logActivity({
+      leadId: lead_id,
+      type: "NOTE", 
+      title: "Note Added",
+      description: note.length > 50 ? note.substring(0, 50) + "..." : note,
+      metaData: {
+        note: note
+      },
+      userId: user_id
+    });
+
     return {
       statusCode: statusCode.OK,
       success: true,
@@ -1151,19 +1174,119 @@ exports.addNote = async (body, user) => {
 
 
 
+// exports.getActivityLog = async (req, res) => {
+//   try {
+//     const lead = await Lead.findByPk(req.params.leadId);
+//     if (!lead) {
+//       return {
+//         statusCode: statusCode.NOT_FOUND,
+//         success: false,
+//         message: "Lead not found",
+//       };
+//     }
+//     // 1️⃣ Fetch activity history
+//     const activities = await ActivityHistory.findAll({
+//       where: { lead_id: String(req.params.leadId) },
+//       include: [
+//         {
+//           model: UserModel,
+//           as: "user",
+//           attributes: ["id", "name"]
+//         }
+//       ],
+//       order: [["created_at", "DESC"]]
+//     });
+
+//     // 2️⃣ Collect all status IDs from meta_data
+//     const statusIds = new Set();
+
+//     activities.forEach(a => {
+//       if (a.activity_type === "STATUS") {
+//         if (a.meta_data?.from_status_id)
+//           statusIds.add(a.meta_data.from_status_id);
+
+//         if (a.meta_data?.to_status_id)
+//           statusIds.add(a.meta_data.to_status_id);
+//       }
+//     });
+
+//     // 3️⃣ Fetch status master
+//     let statusMap = {};
+//     if (statusIds.size > 0) {
+//       const statuses = await LeadStatus.findAll({
+//         where: { id: [...statusIds] },
+//         attributes: ["id", "name"]
+//       });
+
+//       statuses.forEach(s => {
+//         statusMap[s.id] = s.name;
+//       });
+//     }
+
+//     // 4️⃣ Format response (UI READY)
+//     const formatted = activities.map(a => {
+//       const base = {
+//         id: a.id,
+//         type: a.activity_type,
+//         title: a.title,
+//         description: a.description,
+//         created_at: a.created_at,
+//         created_by: a.user?.name || a.created_by,
+//       };
+
+//       // 🔄 STATUS
+//       if (a.activity_type === "STATUS") {
+//         return {
+//           ...base,
+//           from_status: statusMap[a.meta_data?.from_status_id] || null,
+//           to_status: statusMap[a.meta_data?.to_status_id] || null
+//         };
+//       }
+
+//       // 💬 WHATSAPP
+//       if (a.activity_type === "WHATSAPP") {
+//         return {
+//           ...base,
+//           message_type: a.meta_data?.message_type,
+//           media_type: a.meta_data?.media_type || null,
+//           media_url: a.meta_data?.media_url || null,
+//           sent_via: a.meta_data?.sent_via || "API"
+//         };
+//       }
+
+//       return base;
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       data: formatted
+//     });
+//   } catch (error) {
+//     console.error("Error fetching activity log:", error);
+//     return {
+//       statusCode: statusCode.BAD_REQUEST,
+//       success: false,
+//       message: error.message,
+//     };
+//   }
+// }
+
 exports.getActivityLog = async (req, res) => {
   try {
-    const lead = await Lead.findByPk(req.params.leadId);
+    const { leadId } = req.params;
+
+    // 1️⃣ Check Lead
+    const lead = await Lead.findByPk(leadId);
     if (!lead) {
-      return {
-        statusCode: statusCode.NOT_FOUND,
+      return res.status(statusCode.NOT_FOUND).json({
         success: false,
         message: "Lead not found",
-      };
+      });
     }
-    // 1️⃣ Fetch activity history
+
+    // 2️⃣ Fetch Activities
     const activities = await ActivityHistory.findAll({
-      where: { lead_id: String(req.params.leadId) },
+      where: { lead_id: String(leadId) },
       include: [
         {
           model: UserModel,
@@ -1174,7 +1297,7 @@ exports.getActivityLog = async (req, res) => {
       order: [["created_at", "DESC"]]
     });
 
-    // 2️⃣ Collect all status IDs from meta_data
+    // 3️⃣ Collect Status IDs
     const statusIds = new Set();
 
     activities.forEach(a => {
@@ -1187,63 +1310,35 @@ exports.getActivityLog = async (req, res) => {
       }
     });
 
-    // 3️⃣ Fetch status master
+    // 4️⃣ Fetch Status Names
     let statusMap = {};
+
     if (statusIds.size > 0) {
       const statuses = await LeadStatus.findAll({
         where: { id: [...statusIds] },
         attributes: ["id", "name"]
       });
 
-      statuses.forEach(s => {
-        statusMap[s.id] = s.name;
+      statuses.forEach(status => {
+        statusMap[status.id] = status.name;
       });
     }
 
-    // 4️⃣ Format response (UI READY)
-    const formatted = activities.map(a => {
-      const base = {
-        id: a.id,
-        type: a.activity_type,
-        title: a.title,
-        description: a.description,
-        created_at: a.created_at,
-        created_by: a.user?.name || a.created_by,
-      };
+    // 5️⃣ Format Using External Formatter
+    const formattedActivities = activities.map(activity =>
+      formatActivity(activity, statusMap)
+    );
 
-      // 🔄 STATUS
-      if (a.activity_type === "STATUS") {
-        return {
-          ...base,
-          from_status: statusMap[a.meta_data?.from_status_id] || null,
-          to_status: statusMap[a.meta_data?.to_status_id] || null
-        };
-      }
-
-      // 💬 WHATSAPP
-      if (a.activity_type === "WHATSAPP") {
-        return {
-          ...base,
-          message_type: a.meta_data?.message_type,
-          media_type: a.meta_data?.media_type || null,
-          media_url: a.meta_data?.media_url || null,
-          sent_via: a.meta_data?.sent_via || "API"
-        };
-      }
-
-      return base;
-    });
-
-    return res.status(200).json({
+    return res.status(statusCode.OK).json({
       success: true,
-      data: formatted
+      data: formattedActivities
     });
+
   } catch (error) {
     console.error("Error fetching activity log:", error);
-    return {
-      statusCode: statusCode.BAD_REQUEST,
+    return res.status(statusCode.BAD_REQUEST).json({
       success: false,
       message: error.message,
-    };
+    });
   }
-}
+};
