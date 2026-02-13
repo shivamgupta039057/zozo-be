@@ -1,62 +1,87 @@
 // services/leadImport.service.js
 const XLSX = require("xlsx");
 const axios = require("axios");
+const path = require("path");
+const csv = require("csv-parse/sync");
 
-exports.parseExcel = (filePath, sheet) => {
-  const wb = XLSX.readFile(filePath);
-  return XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
-};
+// exports.parseExcel = (filePath, sheet) => {
+//   const wb = XLSX.readFile(filePath);
+//   return XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
+// };
 
 
 
-exports.parseExcelFromS3 = async (fileUrl, sheetName) => {
-  // 1. download file from S3
+// exports.parseExcelFromS3 = async (fileUrl, sheetName) => {
+//   // 1. download file from S3
+//   const response = await axios.get(fileUrl, {
+//     responseType: "arraybuffer",
+//   });
+
+//   const buffer = response.data;
+
+//   // 2. read workbook from buffer
+//   const workbook = XLSX.read(buffer, { type: "buffer" });
+
+//   const sheet =
+//     sheetName || workbook.SheetNames[0];
+
+//   if (!workbook.Sheets[sheet]) {
+//     throw new Error(`Sheet not found: ${sheet}`);
+//   }
+
+//   // 3. convert sheet to JSON
+//   return XLSX.utils.sheet_to_json(
+//     workbook.Sheets[sheet],
+//     { defval: null }
+//   );
+// };
+
+
+exports.parseFileFromS3 = async (fileUrl, sheetName) => {
   const response = await axios.get(fileUrl, {
     responseType: "arraybuffer",
   });
 
   const buffer = response.data;
+  const extension = path.extname(fileUrl).toLowerCase();
 
-  // 2. read workbook from buffer
-  const workbook = XLSX.read(buffer, { type: "buffer" });
+  // ==============================
+  // 1️⃣ Excel Files
+  // ==============================
+  if (extension === ".xlsx" || extension === ".xls") {
+    const workbook = XLSX.read(buffer, { type: "buffer" });
 
-  const sheet =
-    sheetName || workbook.SheetNames[0];
+    const sheet = sheetName || workbook.SheetNames[0];
 
-  if (!workbook.Sheets[sheet]) {
-    throw new Error(`Sheet not found: ${sheet}`);
+    if (!workbook.Sheets[sheet]) {
+      throw new Error(`Sheet not found: ${sheet}`);
+    }
+
+    return XLSX.utils.sheet_to_json(
+      workbook.Sheets[sheet],
+      { defval: null }
+    );
   }
 
-  // 3. convert sheet to JSON
-  return XLSX.utils.sheet_to_json(
-    workbook.Sheets[sheet],
-    { defval: null }
-  );
+  // ==============================
+  // 2️⃣ CSV Files
+  // ==============================
+  if (extension === ".csv") {
+    const text = buffer.toString("utf-8");
+
+    return csv.parse(text, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+      cast: (value) => String(value) // 🔥 force string
+    });
+  }
+
+  // ==============================
+  // Unsupported
+  // ==============================
+  throw new Error("Only Excel and CSV files are supported");
 };
-
-
-// exports.buildLeadPayload = (row, mapping, userId, uploadId) => {
-//   const payload = {
-//     created_by: userId,
-//     upload_id: uploadId,
-//     data: {}
-//   };
-
-//   // static fields
-//   if (mapping.name) payload.name = row[mapping.name];
-//   if (mapping.whatsapp_number)
-//     payload.whatsapp_number = row[mapping.whatsapp_number];
-
-//   // dynamic fields → data JSONB
-//   Object.entries(mapping.data || {}).forEach(([dbField, excelCol]) => {
-//     payload.data[dbField] = row[excelCol];
-//   });
-
-//   return payload;
-// };
-
-
-// services/leadAssignmentPlan.js
 
 
 exports.buildAssignmentPlan = ({ total, userIds, percentages }) => {
@@ -130,3 +155,29 @@ exports.buildLeadPayload = (
 
   return payload;
 };
+
+
+
+
+// exports.buildLeadPayload = (row, mapping, userId, uploadId) => {
+//   const payload = {
+//     created_by: userId,
+//     upload_id: uploadId,
+//     data: {}
+//   };
+
+//   // static fields
+//   if (mapping.name) payload.name = row[mapping.name];
+//   if (mapping.whatsapp_number)
+//     payload.whatsapp_number = row[mapping.whatsapp_number];
+
+//   // dynamic fields → data JSONB
+//   Object.entries(mapping.data || {}).forEach(([dbField, excelCol]) => {
+//     payload.data[dbField] = row[excelCol];
+//   });
+
+//   return payload;
+// };
+
+
+// services/leadAssignmentPlan.js
