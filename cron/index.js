@@ -80,10 +80,10 @@ cron.schedule("* * * * *", async () => {
   for (const f of dueFollowUps) {
 
     sendAlertToUser(f.user_id, {
-      lead_id: f.lead_id,
-        lead_name: f.lead.name,
-        lead_whatsapp: f.lead.whatsapp_number,
-        lead_email: f.lead.email,
+      lead_id: f?.lead_id,
+        lead_name: f?.lead.name,
+        lead_whatsapp: f?.lead.whatsapp_number,
+        lead_email: f?.lead?.email,
       message: "⏰ Time to call this lead",
     });
   await f.update({ status: "done" });
